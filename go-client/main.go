@@ -18,10 +18,11 @@ import (
 var audioFormat = &pb.AudioFormat{}
 
 var args struct {
-	Host       string `arg:"positional,required" help:"Host to connect to."`
-	Port       int    `arg:"positional" default:"65530" help:"Port to connect to."`
-	Verbose    bool   `arg:"-v" help:"Verbose output."`
-	TcpTimeout int    `arg:"-t" default:"3000" help:"TCP timeout in seconds."`
+	Host          string `arg:"positional,required" help:"Host to connect to."`
+	Port          int    `arg:"positional" default:"65530" help:"Port to connect to."`
+	Verbose       bool   `arg:"-v" help:"Verbose output."`
+	AutoReconnect bool   `arg:"-r" help:"Automatically reconnect on connection loss."`
+	TcpTimeout    int    `arg:"-t" default:"3000" help:"TCP timeout in seconds."`
 }
 
 // Command represents the command types
@@ -131,16 +132,7 @@ func handleIncomingTCPData(conn *net.Conn) {
 	}
 }
 
-func main() {
-	arg.MustParse(&args)
-
-	if args.Verbose {
-		slog.SetLogLoggerLevel(slog.LevelDebug)
-	}
-
-	slog.Info(fmt.Sprintf("Host: %v", args.Host))
-	slog.Info(fmt.Sprintf("Port: %v", args.Port))
-
+func Init() {
 	tcpConn, err := net.Dial("tcp", fmt.Sprintf("%s:%d", args.Host, args.Port))
 	if err != nil {
 		panic(err)
@@ -218,4 +210,30 @@ func main() {
 	player.Play()
 
 	handleIncomingTCPData(&tcpConn)
+
+}
+
+func main() {
+	arg.MustParse(&args)
+
+	if args.Verbose {
+		slog.SetLogLoggerLevel(slog.LevelDebug)
+	}
+
+	slog.Info(fmt.Sprintf("Host: %v", args.Host))
+	slog.Info(fmt.Sprintf("Port: %v", args.Port))
+
+	if args.AutoReconnect {
+		slog.Info("Auto reconnect enabled.")
+	}
+
+	Init()
+
+	for args.AutoReconnect {
+		slog.Info("Reconnecting...")
+		Init()
+	}
+
+	slog.Info("Lost connection. Exiting...")
+
 }
