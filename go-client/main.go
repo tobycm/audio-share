@@ -25,6 +25,8 @@ var args struct {
 	TcpTimeout    int    `arg:"-t" default:"3000" help:"TCP timeout in seconds."`
 }
 
+var otoCtx *oto.Context
+
 // Command represents the command types
 type Command int
 
@@ -132,6 +134,25 @@ func handleIncomingTCPData(conn *net.Conn) {
 	}
 }
 
+func InitOto() {
+	op := &oto.NewContextOptions{
+		SampleRate:   int(audioFormat.SampleRate),
+		ChannelCount: int(audioFormat.Channels),
+		Format:       oto.FormatFloat32LE,
+	}
+
+	var readyChan chan struct{}
+	var err error
+
+	otoCtx, readyChan, err = oto.NewContext(op)
+	if err != nil {
+		panic(fmt.Sprintf("Failed to create new context for audio output: %v", err))
+	}
+
+	<-readyChan
+
+}
+
 func Init() {
 	tcpConn, err := net.Dial("tcp", fmt.Sprintf("%s:%d", args.Host, args.Port))
 	if err != nil {
@@ -165,18 +186,9 @@ func Init() {
 
 	slog.Info(fmt.Sprintf("Audio format: %v", audioFormat))
 
-	op := &oto.NewContextOptions{
-		SampleRate:   int(audioFormat.SampleRate),
-		ChannelCount: int(audioFormat.Channels),
-		Format:       oto.FormatFloat32LE,
+	if otoCtx == nil {
+		InitOto()
 	}
-
-	otoCtx, readyChan, err := oto.NewContext(op)
-	if err != nil {
-		panic(fmt.Sprintf("Failed to create new context for audio output: %v", err))
-	}
-
-	<-readyChan
 
 	// Send start play
 	tcpConn.Write((&TcpMessage{Command: CMD_START_PLAY}).Encode())
