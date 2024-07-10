@@ -219,6 +219,7 @@ func Init() {
 	udpConn.Write(buf)
 
 	player := otoCtx.NewPlayer(bufio.NewReader(udpConn))
+	defer player.Close()
 	player.Play()
 
 	handleIncomingTCPData(&tcpConn)
