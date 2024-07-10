@@ -111,7 +111,7 @@ func handleIncomingTCPData(conn *net.Conn) {
 			}
 
 			slog.Error(fmt.Sprintf("Error reading: %v", err))
-			continue
+			return
 		}
 
 		msg := &TcpMessage{}
