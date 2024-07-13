@@ -17,6 +17,8 @@ import (
 
 var audioFormat = &pb.AudioFormat{}
 
+var autoReconnectingTries = 0
+
 var args struct {
 	Host          string `arg:"positional,required" help:"Host to connect to."`
 	Port          int    `arg:"positional" default:"65530" help:"Port to connect to."`
@@ -101,7 +103,7 @@ func (message *TcpMessage) Decode(data []byte) error {
 	return nil
 }
 
-func handleIncomingTCPData(conn *net.Conn) {
+func handleIncomingTCPData(conn *net.Conn) error {
 	buf := make([]byte, 1024)
 
 	for {
@@ -113,7 +115,7 @@ func handleIncomingTCPData(conn *net.Conn) {
 			}
 
 			slog.Error(fmt.Sprintf("Error reading: %v", err))
-			return
+			return err
 		}
 
 		msg := &TcpMessage{}
@@ -132,9 +134,11 @@ func handleIncomingTCPData(conn *net.Conn) {
 			slog.Debug(fmt.Sprintf("Received message: %v", msg))
 		}
 	}
+
+	return nil
 }
 
-func InitOto() {
+func InitOto() error {
 	op := &oto.NewContextOptions{
 		SampleRate:   int(audioFormat.SampleRate),
 		ChannelCount: int(audioFormat.Channels),
@@ -146,17 +150,18 @@ func InitOto() {
 
 	otoCtx, readyChan, err = oto.NewContext(op)
 	if err != nil {
-		panic(fmt.Sprintf("Failed to create new context for audio output: %v", err))
+		return (fmt.Errorf("failed to create new context for audio output: %v", err))
 	}
 
 	<-readyChan
 
+	return nil
 }
 
-func Init() {
+func Init() error {
 	tcpConn, err := net.Dial("tcp", fmt.Sprintf("%s:%d", args.Host, args.Port))
 	if err != nil {
-		panic(err)
+		return err
 	}
 	defer tcpConn.Close()
 
@@ -170,16 +175,16 @@ func Init() {
 	buf := make([]byte, 1024)
 
 	if _, err := tcpConn.Read(buf); err != nil {
-		panic(err)
+		return err
 	}
 
 	msg := &TcpMessage{}
 	if err := msg.Decode(buf); err != nil {
-		panic(err)
+		return err
 	}
 
 	if msg.Command != CMD_GET_FORMAT {
-		panic("Expected CMD_GET_FORMAT")
+		return fmt.Errorf("expected CMD_GET_FORMAT")
 	}
 
 	audioFormat = msg.AudioFormat
@@ -187,7 +192,10 @@ func Init() {
 	slog.Info(fmt.Sprintf("Audio format: %v", audioFormat))
 
 	if otoCtx == nil {
-		InitOto()
+		err = InitOto()
+		if err != nil {
+			return err
+		}
 	}
 
 	// Send start play
@@ -195,22 +203,22 @@ func Init() {
 
 	buf = make([]byte, 1024)
 	if _, err := tcpConn.Read(buf); err != nil {
-		panic(err)
+		return err
 	}
 
 	msg = &TcpMessage{}
 	if err := msg.Decode(buf); err != nil {
-		panic(err)
+		return err
 	}
 
 	if msg.Command != CMD_START_PLAY {
-		panic("Expected CMD_START_PLAY")
+		return fmt.Errorf("expected CMD_START_PLAY")
 	}
 
 	// start UDP listener
 	udpConn, err := net.Dial("udp", fmt.Sprintf("%s:%d", args.Host, args.Port))
 	if err != nil {
-		panic(err)
+		return err
 	}
 	defer udpConn.Close()
 
@@ -222,8 +230,7 @@ func Init() {
 	defer player.Close()
 	player.Play()
 
-	handleIncomingTCPData(&tcpConn)
-
+	return handleIncomingTCPData(&tcpConn)
 }
 
 func main() {
@@ -240,11 +247,38 @@ func main() {
 		slog.Info("Auto reconnect enabled.")
 	}
 
-	Init()
+	err := Init()
+	if err != nil {
+		slog.Error(fmt.Sprintf("%v", err))
+	}
 
 	for args.AutoReconnect {
-		slog.Info("Reconnecting...")
-		Init()
+
+		sleepTime := 0 * time.Second
+
+		switch {
+		case autoReconnectingTries == 0:
+			sleepTime = 0 * time.Second
+		case autoReconnectingTries < 2:
+			sleepTime = 1 * time.Second
+		case autoReconnectingTries < 5:
+			sleepTime = 2 * time.Second
+		case autoReconnectingTries < 10:
+			sleepTime = 5 * time.Second
+		default:
+			sleepTime = 8 * time.Second
+		}
+
+		slog.Info(fmt.Sprintf("Sleeping for %s seconds before auto-reconnecting...", sleepTime.String()))
+
+		time.Sleep(sleepTime)
+
+		err = Init()
+		if err != nil {
+			slog.Error(fmt.Sprintf("%v", err))
+		}
+
+		autoReconnectingTries++
 	}
 
 	slog.Info("Lost connection. Exiting...")
