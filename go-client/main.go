@@ -158,26 +158,6 @@ func InitOto() error {
 	return nil
 }
 
-func SendStartPlay(conn *net.Conn) error {
-	(*conn).Write((&TcpMessage{Command: CMD_START_PLAY}).Encode())
-
-	buf := make([]byte, 1024)
-	if _, err := (*conn).Read(buf); err != nil {
-		return fmt.Errorf("Error reading: %v", err)
-	}
-
-	msg := &TcpMessage{}
-	if err := msg.Decode(buf); err != nil {
-		return fmt.Errorf("Error decoding: %v", err)
-	}
-
-	if msg.Command != CMD_START_PLAY {
-		return fmt.Errorf("expected CMD_START_PLAY")
-	}
-
-	return nil
-}
-
 func Init() error {
 	tcpConn, err := net.Dial("tcp", fmt.Sprintf("%s:%d", args.Host, args.Port))
 	if err != nil {
@@ -218,6 +198,23 @@ func Init() error {
 		}
 	}
 
+	// Send start play
+	tcpConn.Write((&TcpMessage{Command: CMD_START_PLAY}).Encode())
+
+	buf = make([]byte, 1024)
+	if _, err := tcpConn.Read(buf); err != nil {
+		return err
+	}
+
+	msg = &TcpMessage{}
+	if err := msg.Decode(buf); err != nil {
+		return err
+	}
+
+	if msg.Command != CMD_START_PLAY {
+		return fmt.Errorf("expected CMD_START_PLAY")
+	}
+
 	// start UDP listener
 	udpConn, err := net.Dial("udp", fmt.Sprintf("%s:%d", args.Host, args.Port))
 	if err != nil {
@@ -231,13 +228,15 @@ func Init() error {
 
 	player := otoCtx.NewPlayer(bufio.NewReader(udpConn))
 	defer player.Close()
+
+	player.Reset()
 	player.Play()
 
-	if err := SendStartPlay(&tcpConn); err != nil {
+	if err := handleIncomingTCPData(&tcpConn); err != nil {
 		return err
 	}
 
-	return handleIncomingTCPData(&tcpConn)
+	return nil
 }
 
 func main() {
