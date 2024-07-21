@@ -158,6 +158,26 @@ func InitOto() error {
 	return nil
 }
 
+func SendStartPlay(conn *net.Conn) error {
+	(*conn).Write((&TcpMessage{Command: CMD_START_PLAY}).Encode())
+
+	buf := make([]byte, 1024)
+	if _, err := (*conn).Read(buf); err != nil {
+		return fmt.Errorf("Error reading: %v", err)
+	}
+
+	msg := &TcpMessage{}
+	if err := msg.Decode(buf); err != nil {
+		return fmt.Errorf("Error decoding: %v", err)
+	}
+
+	if msg.Command != CMD_START_PLAY {
+		return fmt.Errorf("expected CMD_START_PLAY")
+	}
+
+	return nil
+}
+
 func Init() error {
 	tcpConn, err := net.Dial("tcp", fmt.Sprintf("%s:%d", args.Host, args.Port))
 	if err != nil {
@@ -198,23 +218,6 @@ func Init() error {
 		}
 	}
 
-	// Send start play
-	tcpConn.Write((&TcpMessage{Command: CMD_START_PLAY}).Encode())
-
-	buf = make([]byte, 1024)
-	if _, err := tcpConn.Read(buf); err != nil {
-		return err
-	}
-
-	msg = &TcpMessage{}
-	if err := msg.Decode(buf); err != nil {
-		return err
-	}
-
-	if msg.Command != CMD_START_PLAY {
-		return fmt.Errorf("expected CMD_START_PLAY")
-	}
-
 	// start UDP listener
 	udpConn, err := net.Dial("udp", fmt.Sprintf("%s:%d", args.Host, args.Port))
 	if err != nil {
@@ -229,6 +232,10 @@ func Init() error {
 	player := otoCtx.NewPlayer(bufio.NewReader(udpConn))
 	defer player.Close()
 	player.Play()
+
+	if err := SendStartPlay(&tcpConn); err != nil {
+		return err
+	}
 
 	return handleIncomingTCPData(&tcpConn)
 }
@@ -259,17 +266,19 @@ func main() {
 		switch {
 		case autoReconnectingTries == 0:
 			sleepTime = 0 * time.Second
-		case autoReconnectingTries < 2:
+		case autoReconnectingTries < 15:
 			sleepTime = 1 * time.Second
-		case autoReconnectingTries < 5:
+		case autoReconnectingTries < 25:
 			sleepTime = 2 * time.Second
-		case autoReconnectingTries < 10:
+		case autoReconnectingTries < 30:
 			sleepTime = 5 * time.Second
 		default:
 			sleepTime = 8 * time.Second
 		}
 
-		slog.Info(fmt.Sprintf("Sleeping for %s seconds before auto-reconnecting...", sleepTime.String()))
+		if autoReconnectingTries > 15 {
+			slog.Info(fmt.Sprintf("Sleeping for %s seconds before auto-reconnecting...", sleepTime.String()))
+		}
 
 		time.Sleep(sleepTime)
 
