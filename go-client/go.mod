@@ -15,4 +15,5 @@ require (
 require (
 	github.com/alexflint/go-scalar v1.2.0 // indirect
 	github.com/ebitengine/oto/v3 v3.2.0
+	github.com/hajimehoshi/go-mp3 v0.3.4
 )

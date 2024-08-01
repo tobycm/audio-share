@@ -2,14 +2,19 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/binary"
 	"fmt"
+	"io"
 	"log/slog"
+	"math"
 	"net"
+	"os"
 	"time"
 
 	"github.com/alexflint/go-arg"
 	"github.com/ebitengine/oto/v3"
+	"github.com/hajimehoshi/go-mp3"
 	"google.golang.org/protobuf/proto"
 
 	"tobycm.dev/audio-share-go-client/pb"
@@ -20,14 +25,43 @@ var audioFormat = &pb.AudioFormat{}
 var autoReconnectingTries = 0
 
 var args struct {
-	Host          string `arg:"positional,required" help:"Host to connect to."`
-	Port          int    `arg:"positional" default:"65530" help:"Port to connect to."`
-	Verbose       bool   `arg:"-v" help:"Verbose output."`
-	AutoReconnect bool   `arg:"-r" help:"Automatically reconnect on connection loss."`
-	TcpTimeout    int    `arg:"-t" default:"3000" help:"TCP timeout in seconds."`
+	Host string `arg:"positional,required" help:"Host to connect to."`
+	Port int    `arg:"positional" default:"65530" help:"Port to connect to."`
+
+	AutoReconnect  bool   `arg:"-r" help:"Automatically reconnect on connection loss."`
+	OnConnectSound string `arg:"-s" help:"Sound to play on connection."`
+
+	Verbose    bool `arg:"-v" help:"Verbose output."`
+	TcpTimeout int  `arg:"-t" default:"3000" help:"TCP timeout in seconds."`
 }
 
 var otoCtx *oto.Context
+
+type Int16ToFloat32Converter struct {
+	reader io.Reader
+}
+
+func (c *Int16ToFloat32Converter) Read(p []byte) (n int, err error) {
+	// We need a temporary buffer to read int16 values since each int16 will be converted to float32,
+	// and float32 is twice the size of int16.
+	tempBuf := make([]byte, len(p)/2)
+	n, err = c.reader.Read(tempBuf)
+	if err != nil {
+		return
+	}
+
+	// Initialize a buffer to store the float32 values.
+	floatBuf := make([]byte, n*2)
+	for i := 0; i < n; i += 2 {
+		sample := int16(tempBuf[i]) | int16(tempBuf[i+1])<<8
+		floatSample := float32(sample) / float32(1<<15)
+		binary.LittleEndian.PutUint32(floatBuf[i*2:], math.Float32bits(floatSample))
+	}
+
+	// Copy the float32 buffer into the original buffer.
+	copy(p, floatBuf)
+	return n * 2, nil
+}
 
 // Command represents the command types
 type Command int
@@ -198,6 +232,29 @@ func Init() error {
 		}
 	}
 
+	var player *oto.Player
+
+	if args.OnConnectSound != "" {
+		fileBytes, err := os.ReadFile(args.OnConnectSound)
+		if err != nil {
+			return err
+		}
+
+		// Convert the pure bytes into a reader object that can be used with the mp3 decoder
+		fileBytesReader := bytes.NewReader(fileBytes)
+
+		// Decode file
+		decodedMp3, err := mp3.NewDecoder(fileBytesReader)
+		if err != nil {
+			return err
+		}
+
+		player = otoCtx.NewPlayer(&Int16ToFloat32Converter{reader: decodedMp3})
+		player.Play()
+
+		slog.Debug("Playing on connect sound")
+	}
+
 	// Send start play
 	tcpConn.Write((&TcpMessage{Command: CMD_START_PLAY}).Encode())
 
@@ -226,7 +283,16 @@ func Init() error {
 	binary.LittleEndian.PutUint32(buf, uint32(msg.ID))
 	udpConn.Write(buf)
 
-	player := otoCtx.NewPlayer(bufio.NewReader(udpConn))
+	if player != nil {
+		for player.IsPlaying() {
+			time.Sleep(time.Millisecond)
+		}
+		if err := player.Close(); err != nil {
+			return err
+		}
+	}
+
+	player = otoCtx.NewPlayer(bufio.NewReader(udpConn))
 	defer player.Close()
 
 	player.Reset()
@@ -253,8 +319,11 @@ func main() {
 		slog.Info("Auto reconnect enabled.")
 	}
 
-	err := Init()
-	if err != nil {
+	if args.OnConnectSound != "" {
+		slog.Info(fmt.Sprintf("On connect sound: %s", args.OnConnectSound))
+	}
+
+	if err := Init(); err != nil {
 		slog.Error(fmt.Sprintf("%v", err))
 	}
 
@@ -281,8 +350,7 @@ func main() {
 
 		time.Sleep(sleepTime)
 
-		err = Init()
-		if err != nil {
+		if err := Init(); err != nil {
 			slog.Error(fmt.Sprintf("%v", err))
 		}
 
