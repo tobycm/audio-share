@@ -211,7 +211,7 @@ func LoadFileAndPlay(file string) error {
 	player := otoCtx.NewPlayer(&Int16ToFloat32Converter{reader: decodedMp3})
 	player.Play()
 
-	slog.Debug("Playing on connect sound")
+	slog.Debug(fmt.Sprintf("Playing sound: %s", file))
 
 	for player.IsPlaying() {
 		time.Sleep(time.Millisecond)
@@ -346,11 +346,11 @@ func main() {
 
 	if err := Init(); err != nil {
 		slog.Error(fmt.Sprintf("%v", err))
+	}
 
-		if state == Connected && args.OnDisconnect != "" {
-			if err := LoadFileAndPlay(args.OnDisconnect); err != nil {
-				slog.Error(fmt.Sprintf("%v", err))
-			}
+	if state == Connected && args.OnDisconnect != "" {
+		if err := LoadFileAndPlay(args.OnDisconnect); err != nil {
+			slog.Error(fmt.Sprintf("%v", err))
 		}
 	}
 
