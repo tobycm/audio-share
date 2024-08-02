@@ -28,8 +28,9 @@ var args struct {
 	Host string `arg:"positional,required" help:"Host to connect to."`
 	Port int    `arg:"positional" default:"65530" help:"Port to connect to."`
 
-	AutoReconnect  bool   `arg:"-r" help:"Automatically reconnect on connection loss."`
-	OnConnectSound string `arg:"-s" help:"Sound to play on connection."`
+	AutoReconnect bool   `arg:"-r" help:"Automatically reconnect on connection loss."`
+	OnConnect     string `arg:"-c" help:"Sound to play on connection."`
+	OnDisconnect  string `arg:"-d" help:"Sound to play on disconnect."`
 
 	Verbose    bool `arg:"-v" help:"Verbose output."`
 	TcpTimeout int  `arg:"-t" default:"3000" help:"TCP timeout in seconds."`
@@ -192,6 +193,46 @@ func InitOto() error {
 	return nil
 }
 
+func LoadFileAndPlay(file string) error {
+	fileBytes, err := os.ReadFile(args.OnConnect)
+	if err != nil {
+		return err
+	}
+
+	// Convert the pure bytes into a reader object that can be used with the mp3 decoder
+	fileBytesReader := bytes.NewReader(fileBytes)
+
+	// Decode file
+	decodedMp3, err := mp3.NewDecoder(fileBytesReader)
+	if err != nil {
+		return err
+	}
+
+	player := otoCtx.NewPlayer(&Int16ToFloat32Converter{reader: decodedMp3})
+	player.Play()
+
+	slog.Debug("Playing on connect sound")
+
+	for player.IsPlaying() {
+		time.Sleep(time.Millisecond)
+	}
+
+	if err := player.Close(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+type ConnectionState int
+
+const (
+	Connected ConnectionState = iota
+	Disconnected
+)
+
+var state ConnectionState = Disconnected
+
 func Init() error {
 	tcpConn, err := net.Dial("tcp", fmt.Sprintf("%s:%d", args.Host, args.Port))
 	if err != nil {
@@ -232,28 +273,13 @@ func Init() error {
 		}
 	}
 
-	var player *oto.Player
-
-	if args.OnConnectSound != "" {
-		fileBytes, err := os.ReadFile(args.OnConnectSound)
-		if err != nil {
+	if args.OnConnect != "" {
+		if err := LoadFileAndPlay(args.OnConnect); err != nil {
 			return err
 		}
-
-		// Convert the pure bytes into a reader object that can be used with the mp3 decoder
-		fileBytesReader := bytes.NewReader(fileBytes)
-
-		// Decode file
-		decodedMp3, err := mp3.NewDecoder(fileBytesReader)
-		if err != nil {
-			return err
-		}
-
-		player = otoCtx.NewPlayer(&Int16ToFloat32Converter{reader: decodedMp3})
-		player.Play()
-
-		slog.Debug("Playing on connect sound")
 	}
+
+	state = Connected
 
 	// Send start play
 	tcpConn.Write((&TcpMessage{Command: CMD_START_PLAY}).Encode())
@@ -283,16 +309,7 @@ func Init() error {
 	binary.LittleEndian.PutUint32(buf, uint32(msg.ID))
 	udpConn.Write(buf)
 
-	if player != nil {
-		for player.IsPlaying() {
-			time.Sleep(time.Millisecond)
-		}
-		if err := player.Close(); err != nil {
-			return err
-		}
-	}
-
-	player = otoCtx.NewPlayer(bufio.NewReader(udpConn))
+	player := otoCtx.NewPlayer(bufio.NewReader(udpConn))
 	defer player.Close()
 
 	player.Reset()
@@ -319,13 +336,25 @@ func main() {
 		slog.Info("Auto reconnect enabled.")
 	}
 
-	if args.OnConnectSound != "" {
-		slog.Info(fmt.Sprintf("On connect sound: %s", args.OnConnectSound))
+	if args.OnConnect != "" {
+		slog.Info(fmt.Sprintf("On connect sound: %s", args.OnConnect))
+	}
+
+	if args.OnDisconnect != "" {
+		slog.Info(fmt.Sprintf("On disconnect sound: %s", args.OnDisconnect))
 	}
 
 	if err := Init(); err != nil {
 		slog.Error(fmt.Sprintf("%v", err))
+
+		if state == Connected && args.OnDisconnect != "" {
+			if err := LoadFileAndPlay(args.OnDisconnect); err != nil {
+				slog.Error(fmt.Sprintf("%v", err))
+			}
+		}
 	}
+
+	state = Disconnected
 
 	for args.AutoReconnect {
 
@@ -352,7 +381,15 @@ func main() {
 
 		if err := Init(); err != nil {
 			slog.Error(fmt.Sprintf("%v", err))
+
+			if state == Connected && args.OnDisconnect != "" {
+				if err := LoadFileAndPlay(args.OnDisconnect); err != nil {
+					slog.Error(fmt.Sprintf("%v", err))
+				}
+			}
 		}
+
+		state = Disconnected
 
 		autoReconnectingTries++
 	}
