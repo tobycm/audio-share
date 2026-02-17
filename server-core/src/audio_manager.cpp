@@ -2,25 +2,22 @@
 
 audio_manager::audio_manager()
 {
-    _format = std::make_shared<AudioFormat>();
+    _format = std::make_unique<AudioFormat>();
 }
 
-audio_manager::~audio_manager()
-{
-    
-}
+audio_manager::~audio_manager() = default;
 
-void audio_manager::start_loopback_recording(std::shared_ptr<network_manager> network_manager, const std::string& endpoint_id)
+void audio_manager::start_loopback_recording(std::shared_ptr<network_manager> network_manager, const capture_config& config)
 {
-    _stoppped = false;
-    _record_thread = std::thread([network_manager = network_manager, endpoint_id = endpoint_id, self = shared_from_this()] {
-        self->do_loopback_recording(network_manager, endpoint_id);
+    _stopped = false;
+    _record_thread = std::thread([network_manager = network_manager, config = config, self = shared_from_this()] {
+        self->do_loopback_recording(network_manager, config);
     });
 }
 
 void audio_manager::stop()
 {
-    _stoppped = true;
+    _stopped = true;
     _record_thread.join();
 }
 

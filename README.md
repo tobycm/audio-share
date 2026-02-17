@@ -7,7 +7,6 @@
 [![GitHub release (latest SemVer)](https://img.shields.io/github/v/release/mkckr0/audio-share?logo=github)](https://github.com/mkckr0/audio-share/releases/latest)
 [![F-Droid](https://img.shields.io/f-droid/v/io.github.mkckr0.audio_share_app?logo=F-Droid)](https://f-droid.org/packages/io.github.mkckr0.audio_share_app)
 [![GitHub license](https://img.shields.io/github/license/mkckr0/audio-share)](https://img.shields.io/github/license/mkckr0/audio-share)
-[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fmkckr0%2Faudio-share.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2Fmkckr0%2Faudio-share?ref=badge_shield)
 [![GitHub Release Date](https://img.shields.io/github/release-date/mkckr0/audio-share)](https://img.shields.io/github/release-date/mkckr0/audio-share)
 [![GitHub last commit](https://img.shields.io/github/last-commit/mkckr0/audio-share)](https://img.shields.io/github/last-commit/mkckr0/audio-share)
 [![GitHub contributors](https://img.shields.io/github/contributors/mkckr0/audio-share)](https://img.shields.io/github/contributors/mkckr0/audio-share)
@@ -26,6 +25,13 @@
 [![GitHub closed pull requests](https://img.shields.io/github/issues-pr-closed/mkckr0/audio-share)](https://img.shields.io/github/issues-pr-closed/mkckr0/audio-share)
 [![Release](https://github.com/mkckr0/audio-share/actions/workflows/release.yml/badge.svg)](https://github.com/mkckr0/audio-share/actions/workflows/release.yml)
 [![GitHub number of milestones](https://img.shields.io/github/milestones/open/mkckr0/audio-share)](https://github.com/mkckr0/audio-share/milestones?state=open)
+[![GitHub milestone details](https://img.shields.io/github/milestones/progress-percent/mkckr0/audio-share/3)](https://github.com/mkckr0/audio-share/milestone/3)
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fmkckr0%2Faudio-share.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2Fmkckr0%2Faudio-share?ref=badge_shield)
+
+<a href="https://github.com/mkckr0/audio-share/releases/latest"><img src="https://raw.githubusercontent.com/Ehviewer-Overhauled/Art/master/get-it-on-github.svg" height="75"></a>
+<a href="https://f-droid.org/packages/io.github.mkckr0.audio_share_app"><img src="https://fdroid.gitlab.io/artwork/badge/get-it-on.png" height="75"></a>
+
+<a href="https://sourceforge.net/projects/audio-share/files"><img alt="Download Audio Share" src="https://a.fsdn.com/con/app/sf-download-button?button_size=2x" width=276 height=48></a>
 
 Audio Share can share Windows/Linux computer's audio to Android phone over network, so your phone becomes the speaker of computer. (You needn't buy a new speaker😄.)
 
@@ -33,34 +39,34 @@ Audio Share can share Windows/Linux computer's audio to Android phone over netwo
 
 &nbsp;
 
-&nbsp;
+<img src="metadata/en-US/images/phoneScreenshots/1.png" width="30%" alt="metadata/en-US/images/phoneScreenshots/1.png">&nbsp;
+<img src="metadata/en-US/images/phoneScreenshots/2.png" width="30%" alt="metadata/en-US/images/phoneScreenshots/2.png">&nbsp;
+<img src="metadata/en-US/images/phoneScreenshots/3.png" width="30%" alt="metadata/en-US/images/phoneScreenshots/3.png"><br/>
+<img src="metadata/en-US/images/phoneScreenshots/4.png" width="30%" alt="metadata/en-US/images/phoneScreenshots/4.png">&nbsp;
+<img src="metadata/en-US/images/phoneScreenshots/5.png" width="30%" alt="metadata/en-US/images/phoneScreenshots/5.png">
 
 ## Requirements
 
 - A PC with Windows or Linux as the server.
-
-   - Windows 10+ x86_64 with [Microsoft Visual C++ 2015-2022 Redistributable (x64)](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist) ([vc_redist.x64.exe](https://aka.ms/vs/17/release/vc_redist.x64.exe)).
-   - Linux with PipeWire.
-
+  - Windows 10+ x86_64 with latest [Microsoft Visual C++ 2015-2022 Redistributable (x64)](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist) ([vc_redist.x64.exe](https://aka.ms/vs/17/release/vc_redist.x64.exe)).
+  - Linux with PipeWire.
 - The audio player on PC can work normally. That's to say that you should have a sound card and the audio endpoint is in available state. Otherwise, you need some [extra setups](#extra-setups-for-no-audio-endpoint).
-- Android 6.0(API 23)+.
+- The phone with Android 6.0(API 23)+.
+- The network (e.g. Wi-Fi or USB tethering) that the phone can connect with the PC.
 
 ## Usage for Windows GUI
 
 - Download APK file and AudioShareServer.exe from [latest release](https://github.com/mkckr0/audio-share/releases/latest).
-- Open the AudioShareServer.exe on your computer. The default arguments may work well. But you may still have to check the "Host" part. It's normally the LAN address, such as `192.168.3.2`. Make sure your phone can connect your computer over this IP address. Then Click "Start Server" button.
-- Install APK to your phone and open it. Modify the "Host" part to make sure it's same as the value of previous step, such as `192.168.3.2`. Click "▶" button and enjoy the audio🎶.
-
-> [!CAUTION]
-> This app doesn't support auto reconnecting feature at present. Once the app is killed  or disconnected by Android power saver, the audio playing will be stop. Adding app to the whitelist of power saver is recommended. To do this, you can press "Request Ignore Battery Optimizations" on app's Settings.
+- Open the AudioShareServer.exe on your computer. The default arguments may work well. But you may still have to check the "Host" part. It's normally the LAN address, such as `192.168.xxx.xxx`. Make sure your phone can connect your computer over this IP address. Then Click "Start Server" button.
+- Install APK to your phone and open it. Modify the "Host" part to make sure it's same as the value of previous step, such as `192.168.xxx.xxx`. Click "▶" button and enjoy the audio🎶.
 
 ## Usage for Windows/Linux CMD
 
 - Download the `audio-share-server-cmd-windows.zip` for Windows, the `audio-share-server-cmd-linux.tar.gz` for Linux.
 - Uncompress the archive file.
-- Find the LAN address of your computer, such as `192.168.3.2`. Then run `as-cmd -b 192.168.3.2` to start the server. It will use the default port `65530` and select a default audio endpoint.
+- Just run `as-cmd -b` to start the server. It will use the first LAN address as the host with the port `65530` and select a default audio endpoint. Most of the time, it works fine. If not, then use `as-cmd -h` to see the help, and set the proper arguments.
 - The Windows will ask you to add firewall rules automatically while Linux won't. So if your Linux distribution enables firewall, you need to configure firewall manually.
-- Install APK to your phone and open it. Modify the "Host" part to make sure it's same as the value of previous step, such as `192.168.3.2`. Click "▶" button and enjoy the audio🎶.
+- Install APK to your phone and open it. Modify the "Host" part to make sure it's same as the value of previous step, such as `192.168.xxx.xxx`. Click "▶" button and enjoy the audio🎶.
 
 ## Usage for Go client
 
@@ -68,9 +74,11 @@ Audio Share can share Windows/Linux computer's audio to Android phone over netwo
 - Run the binary in your terminal
 
 Parameters:
+
 ```
 audioshare-client <host> [post] [-v]
 ```
+
 `-v` is for verbose logging
 
 ## Configure Firewall Rules on Linux
@@ -121,24 +129,38 @@ There are two kinds of audio format:
 
 The transfer audio format is uncompressed PCM data and keep same with capture audio format.
 
-You can open `server.log` to see the capture audio format.
-
-```yaml {"id":"01J17JZ5V49J3PY1RPKJCB7TD9"}
-[2024-02-11 22:27:33.019] [server] [info] AudioFormat:
-format_tag: 3
-channels: 2
-sample_rate: 192000
-bits_per_sample: 32
+You can open `server.log` to see the transfer audio format.
 
 ```
+[2024-10-26 14:52:48.967] [info] AudioFormat:
+encoding: ENCODING_PCM_16BIT
+channels: 2
+sample_rate: 44100
+```
 
-As shown above, the format is `32 bit float`, the channel count is `2`, and sample rate is `192kHz`.
+As shown above, the encoding is `16 bit integer PCM`, the channel count is `2`, and sample rate is `44.1kHz`.
 
-On Windows, the capture audio format is the default value given by Windows Core Audio APIs. It seems like always be `32 bit float`. The sample rate is affected by audio endpoint format. You may change it by setting System Sounds Panel(`mmsys.cpl`). In `Playback` tab, right click one available endpoint, and open Properties Panel, and select `Advanced` tab, and change `Default Format` and click `Apply`. This can be also done in `Realtek Audio Console`, if you use a Realtek Audio Card.
+On Android, AudioTrack API only support the PCM audio formats listed below:
 
-On Linux, the capture audio format is hardcoded. To keep same with Windows, the audio format is also `32 bit float`. The channel count is always `2`. The sample rate is always `48kHz`.
+```
+ENCODING_PCM_FLOAT
+ENCODING_PCM_8BIT
+ENCODING_PCM_16BIT
+ENCODING_PCM_24BIT_PACKED
+ENCODING_PCM_32BIT
+```
 
-Note that the higher sample rate will consume more network traffic bandwidth. Maybe in future, the capture audio format can be set by user manually.
+https://developer.android.com/reference/android/media/AudioFormat#encoding
+
+Audio Share support these 5 kinds of PCM format, but whether specific format is available depends on the audio endpoint.
+
+On Windows, the default capture audio format depends on the audio endpoint's default format. You may change it by setting Sound Panel(`mmsys.cpl`). In Sound Panel's `Playback` tab, right click one available endpoint, and open Properties Panel, and select `Advanced` tab, and change `Default Format` and click `Apply`. This can be also done in `Realtek Audio Console`, if you use a Realtek audio card. The capture audio format must has the same channels and sample rate with the audio endpoint. So if you want to change them, you can only open Sound Panel and set default format. To be compatible with Linux, the `as-cmd` can still set the `--channels` or `--sample-rate` on Windows. However, it will fallback to the proper audio format, because it doesn't support the expected in most cases.
+
+https://learn.microsoft.com/en-us/windows/win32/coreaudio/device-formats
+
+On Linux, the default capture audio format could have been given by PipeWire completely. However, the default audio encoding may be planar, such as `SPA_AUDIO_FORMAT_F32P`. Android's AudioTrack can't play it. So the default audio encoding is forced to `SPA_AUDIO_FORMAT_F32_LE`(32 bit float PCM with little endian). The default channels and sample rate are untouched and given by PipeWire.
+
+Note that decrease the encoding bitwise or sample rate can decrease network bandwidth, but can also increase the blank noise, also known as audio loss.
 
 ## About Volume
 
@@ -201,32 +223,36 @@ total: 1
 
 ```
 
+## Known Issues
+
+### The quick settings tile can't start playback directly
+
+[Restrictions on starting a foreground service from the background](https://developer.android.com/develop/background-work/services/foreground-services#bg-access-restrictions)  
+Turns off or ignore battery optimizations can let it work.
+
 ## Compile from source
 
 - Android App
-
-   - Android Studio will import all dependencies automatically.
+  - Install JDK 17 manually or by Andorid Studio.
+  - Android Studio will import all dependencies automatically.
 
 - Server MFC
-
-   - vcpkg is required for install dependencies.
-   - Run `vcpkg install asio protobuf spdlog[wchar] wil nlohmann-json` to install deps. The vcpkg triplet is `x64-windows-static-md`.
-   - Visual Studio 2022 with "Desktop development with C++" workload and "C++ MFC for latest v143 build tools (x86 & x64)" option is required for compiling.
+  - vcpkg is required for install dependencies.
+  - Run `vcpkg install asio protobuf spdlog[wchar] wil nlohmann-json` to install deps. The vcpkg triplet is `x64-windows-static-md`.
+  - Visual Studio 2022 with "Desktop development with C++" workload and "C++ MFC for latest v143 build tools (x86 & x64)" option is required for compiling.
 
 - Server CMD
-
-   - CMake and a compiler support C++20 is required. Linux also need `libpipewire-dev` or `pipewire-devel`.
-   - Install vcpkg, and set `VPCKG_ROOT` env. This env is required by `CMakePresets.json`.
-   - Run `vcpkg install asio protobuf spdlog cxxopts` to install deps. The vcpkg triplet is `x64-windows-static-md` for Windows, `x64-linux` for Linux.
-   - Run `cmake --preset linux-Release` to configure.
-   - Run `cmake --build --preset linux-Release` to build. The `as-cmd` is located at `out/install/linux-Release/bin/as-cmd`.
-   - For Windows, replace `linux` to `windows` in previous two steps.
+  - CMake and a compiler support C++20 is required. Linux also need `libpipewire-dev` or `pipewire-devel`.
+  - Install vcpkg, and set `VPCKG_ROOT` env. This env is required by `CMakePresets.json`.
+  - Run `vcpkg install asio protobuf cxxopts` to install deps. The vcpkg triplet is `x64-windows-static-md` for Windows, `x64-linux` for Linux. In addition, Windows need run `vcpkg install spdlog[wchar] wil`, and Linux need run `vcpkg install spdlog`.
+  - Run `cmake --preset linux-Release` to configure.
+  - Run `cmake --build --preset linux-Release` to build. The `as-cmd` is located at `out/install/linux-Release/bin/as-cmd`.
+  - For Windows, replace `linux` to `windows` in previous two steps.
 
 - Go Client (for Windows, MacOS, Linux, FreeBSD, OpenBSD, Android, iOS, WebAssembly, Nintendo Switch, Xbox)
-
-   - Download [Go](https://go.dev/dl/)
-   - Make sure you are in the `go-client` folder, run `go build -o build/audioshare-client.exe`
-   - Your binary is located at `build/audioshare-client.exe`
+  - Download [Go](https://go.dev/dl/)
+  - Make sure you are in the `go-client` folder, run `go build -o build/audioshare-client.exe`
+  - Your binary is located at `build/audioshare-client.exe`
 
 ## Star History
 
@@ -255,16 +281,20 @@ This project is licensed under the [Apache-2.0 license](https://opensource.org/l
 
 [![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fmkckr0%2Faudio-share.svg?type=large)](https://app.fossa.com/projects/git%2Bgithub.com%2Fmkckr0%2Faudio-share?ref=badge_large)
 
-## Used third-party libraries
+## Used Third-party Libraries
 
+- [Asio](https://github.com/chriskohlhoff/asio) licensed under the [BSL-1.0 license](http://www.boost.org/LICENSE_1_0.txt)
 - [nlohmann/json](https://github.com/nlohmann/json) licensed under the [MIT license](https://github.com/nlohmann/json/blob/develop/LICENSE.MIT)
 - [WIL](https://github.com/microsoft/wil) licensed under the [MIT license](https://github.com/microsoft/wil/blob/master/LICENSE)
-- [Asio](https://github.com/chriskohlhoff/asio) licensed under the [BSL-1.0 license](http://www.boost.org/LICENSE_1_0.txt).
-- [Protocol Buffers](https://github.com/protocolbuffers/protobuf) licensed under the [LICENSE](https://github.com/protocolbuffers/protobuf/blob/main/LICENSE).
-- [spdlog](https://github.com/gabime/spdlog) licensed under the [MIT license](https://github.com/gabime/spdlog/blob/v1.x/LICENSE).
-- [{fmt}](https://github.com/fmtlib/fmt) licensed under the [LICENSE](https://github.com/fmtlib/fmt/blob/master/LICENSE).
+- [Protocol Buffers](https://github.com/protocolbuffers/protobuf) licensed under the [LICENSE](https://github.com/protocolbuffers/protobuf/blob/main/LICENSE)
+- [spdlog](https://github.com/gabime/spdlog) licensed under the [MIT license](https://github.com/gabime/spdlog/blob/v1.x/LICENSE)
+- [{fmt}](https://github.com/fmtlib/fmt) licensed under the [LICENSE](https://github.com/fmtlib/fmt/blob/master/LICENSE)
 - [cxxopts](https://github.com/jarro2783/cxxopts) licensed under the [MIT license](https://github.com/jarro2783/cxxopts/blob/master/LICENSE)
-- [Netty](https://github.com/netty/netty) licensed under the [Apache-2.0 license](http://www.apache.org/licenses/LICENSE-2.0).
-- [Material Components for Android](https://github.com/material-components/material-components-android) licensed under the [Apache-2.0 license](http://www.apache.org/licenses/LICENSE-2.0).
-- [Protobuf Plugin for Gradle](https://github.com/google/protobuf-gradle-plugin) licensed under the [LICENSE](https://github.com/google/protobuf-gradle-plugin/blob/master/LICENSE).
-- [PipeWire](https://gitlab.freedesktop.org/pipewire/pipewire) licensed under the [LICENSE](https://gitlab.freedesktop.org/pipewire/pipewire/-/blob/master/LICENSE).
+- [PipeWire](https://gitlab.freedesktop.org/pipewire/pipewire) licensed under the [LICENSE](https://gitlab.freedesktop.org/pipewire/pipewire/-/blob/master/LICENSE)
+- [Ktor](https://github.com/ktorio/ktor) licensed under the [Apache-2.0 license](http://www.apache.org/licenses/LICENSE-2.0)
+- [MaterialKolor](https://github.com/jordond/MaterialKolor) licensed under the [MIT license](https://github.com/jordond/MaterialKolor/blob/main/LICENSE)
+
+## Sponsors
+
+- [Mosklia](https://github.com/Mosklia)
+- [YuHuanTin](https://github.com/yuhuantin)

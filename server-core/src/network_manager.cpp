@@ -16,11 +16,11 @@
 
 #include "network_manager.hpp"
 #include "formatter.hpp"
-
 #include "audio_manager.hpp"
 
 #include <list>
 #include <ranges>
+#include <coroutine>
 
 #ifdef _WINDOWS
 #include <iphlpapi.h>
@@ -29,6 +29,11 @@
 #pragma comment(lib, "Ws2_32.lib")
 #pragma comment(lib, "Iphlpapi.lib")
 #endif // _WINDOWS
+
+#ifdef linux
+#include <sys/types.h>
+#include <ifaddrs.h>
+#endif
 
 #include <spdlog/spdlog.h>
 #include <fmt/ranges.h>
@@ -41,19 +46,19 @@ network_manager::network_manager(std::shared_ptr<audio_manager>& audio_manager)
 {
 }
 
-std::vector<std::wstring> network_manager::get_local_addresss()
+std::vector<std::string> network_manager::get_address_list()
 {
-    std::vector<std::wstring> address_list;
+    std::vector<std::string> address_list;
 
 #ifdef _WINDOWS
     ULONG family = AF_INET;
     ULONG flags = GAA_FLAG_INCLUDE_ALL_INTERFACES;
 
     ULONG size = 0;
-    GetAdaptersAddresses(family, flags, NULL, NULL, &size);
-    PIP_ADAPTER_ADDRESSES pAddresses = (PIP_ADAPTER_ADDRESSES)malloc(size);
+    GetAdaptersAddresses(family, flags, nullptr, nullptr, &size);
+    auto pAddresses = (PIP_ADAPTER_ADDRESSES)malloc(size);
 
-    auto ret = GetAdaptersAddresses(family, flags, NULL, pAddresses, &size);
+    auto ret = GetAdaptersAddresses(family, flags, nullptr, pAddresses, &size);
     if (ret == ERROR_SUCCESS) {
         for (auto pCurrentAddress = pAddresses; pCurrentAddress; pCurrentAddress = pCurrentAddress->Next) {
             if (pCurrentAddress->OperStatus != IfOperStatusUp || pCurrentAddress->IfType == IF_TYPE_SOFTWARE_LOOPBACK) {
@@ -62,33 +67,85 @@ std::vector<std::wstring> network_manager::get_local_addresss()
 
             for (auto pUnicast = pCurrentAddress->FirstUnicastAddress; pUnicast; pUnicast = pUnicast->Next) {
                 auto sockaddr = (sockaddr_in*)pUnicast->Address.lpSockaddr;
-                wchar_t buf[20] {};
-                if (InetNtopW(AF_INET, &sockaddr->sin_addr, buf, std::size(buf))) {
-                    address_list.push_back(buf);
+                char buf[50];
+                if (inet_ntop(AF_INET, &sockaddr->sin_addr, buf, sizeof(buf))) {
+                    address_list.emplace_back(buf);
                 }
             }
         }
     }
 
     free(pAddresses);
-#endif // _WINDOWS
+#endif
 
-    std::sort(address_list.begin(), address_list.end(), [](const std::wstring& lhs, const std::wstring& rhs) {
-        auto is_private_addr = [](const std::wstring& addr) {
-            return addr.find(L"192.168.") == 0;
-        };
-        bool lhs_is_private = is_private_addr(lhs);
-        bool rhs_is_private = is_private_addr(rhs);
-        if (lhs_is_private != rhs_is_private) {
-            return lhs_is_private > rhs_is_private;
-        } else {
-            return std::less<std::wstring>()(lhs, rhs);
+#ifdef linux
+    struct ifaddrs* ifaddrs;
+    if (getifaddrs(&ifaddrs) == -1) {
+        return address_list;
+    }
+
+    for (auto ifa = ifaddrs; ifa; ifa = ifa->ifa_next) {
+        if (!ifa->ifa_addr) {
+            continue;
         }
-    });
+        if (ifa->ifa_addr->sa_family != AF_INET) {
+            continue;
+        }
+        if (ifa->ifa_flags & IFF_LOOPBACK) {
+            continue;
+        }
+        auto sockaddr = (sockaddr_in*)ifa->ifa_addr;
+        char buf[50];
+        if (inet_ntop(AF_INET, &sockaddr->sin_addr, buf, sizeof(buf))) {
+            address_list.emplace_back(buf);
+        }
+    }
+
+    freeifaddrs(ifaddrs);
+#endif
+
     return address_list;
 }
 
-void network_manager::start_server(const std::string& host, const uint16_t port, const std::string& endpoint_id)
+std::string network_manager::get_default_address()
+{
+    return select_default_address(get_address_list());
+}
+
+std::string network_manager::select_default_address(const std::vector<std::string>& address_list)
+{
+    if (address_list.empty()) {
+        return {};
+    }
+
+    auto is_private_address = [](const std::string& address) {
+        constexpr uint32_t private_addr_list[] = {
+            0x0a000000,
+            0xac100000,
+            0xc0a80000,
+        };
+
+        uint32_t addr;
+        inet_pton(AF_INET, address.c_str(), &addr);
+        addr = ntohl(addr);
+        for (auto&& private_addr : private_addr_list) {
+            if ((addr & private_addr) == private_addr) {
+                return true;
+            }
+        }
+
+        return false;
+    };
+
+    for (auto&& address : address_list) {
+        if (is_private_address(address)) {
+            return address;
+        }
+    }
+    return address_list.front();
+}
+
+void network_manager::start_server(const std::string& host, uint16_t port, const audio_manager::capture_config& capture_config)
 {
     _ioc = std::make_shared<asio::io_context>();
     {
@@ -99,7 +156,7 @@ void network_manager::start_server(const std::string& host, const uint16_t port,
         acceptor.bind(endpoint);
         acceptor.listen();
 
-        _audio_manager->start_loopback_recording(shared_from_this(), endpoint_id);
+        _audio_manager->start_loopback_recording(shared_from_this(), capture_config);
         asio::co_spawn(*_ioc, accept_tcp_loop(std::move(acceptor)), asio::detached);
 
         // start tcp success
@@ -141,7 +198,7 @@ void network_manager::wait_server()
     _net_thread.join();
 }
 
-bool network_manager::is_running()
+bool network_manager::is_running() const
 {
     return _ioc != nullptr;
 }
@@ -161,7 +218,7 @@ asio::awaitable<void> network_manager::read_loop(std::shared_ptr<tcp_socket> pee
 
         if (cmd == cmd_t::cmd_get_format) {
             auto format = _audio_manager->get_format_binary();
-            uint32_t size = (uint32_t)format.size();
+            auto size = (uint32_t)format.size();
             std::array<asio::const_buffer, 3> buffers = {
                 asio::buffer(&cmd, sizeof(cmd)),
                 asio::buffer(&size, sizeof(size)),
@@ -266,7 +323,6 @@ asio::awaitable<void> network_manager::accept_tcp_loop(tcp_acceptor acceptor)
 
         asio::co_spawn(acceptor.get_executor(), read_loop(peer), asio::detached);
     }
-    spdlog::info("stop {}", __func__);
 }
 
 asio::awaitable<void> network_manager::accept_udp_loop()
@@ -284,7 +340,7 @@ asio::awaitable<void> network_manager::accept_udp_loop()
     }
 }
 
-auto network_manager::close_session(std::shared_ptr<tcp_socket> peer) -> playing_peer_list_t::iterator
+auto network_manager::close_session(std::shared_ptr<tcp_socket>& peer) -> playing_peer_list_t::iterator
 {
     spdlog::info("close {}", peer->remote_endpoint());
     auto it = remove_playing_peer(peer);
@@ -293,7 +349,7 @@ auto network_manager::close_session(std::shared_ptr<tcp_socket> peer) -> playing
     return it;
 }
 
-int network_manager::add_playing_peer(std::shared_ptr<tcp_socket> peer)
+int network_manager::add_playing_peer(std::shared_ptr<tcp_socket>& peer)
 {
     if (_playing_peer_list.contains(peer)) {
         spdlog::error("{} repeat add tcp://{}", __func__, peer->remote_endpoint());
@@ -309,7 +365,7 @@ int network_manager::add_playing_peer(std::shared_ptr<tcp_socket> peer)
     return info->id;
 }
 
-auto network_manager::remove_playing_peer(std::shared_ptr<tcp_socket> peer) -> playing_peer_list_t::iterator
+auto network_manager::remove_playing_peer(std::shared_ptr<tcp_socket>& peer) -> playing_peer_list_t::iterator
 {
     auto it = _playing_peer_list.find(peer);
     if (it == _playing_peer_list.end()) {
@@ -334,7 +390,7 @@ void network_manager::fill_udp_peer(int id, asio::ip::udp::endpoint udp_peer)
     }
 
     it->second->udp_peer = udp_peer;
-    spdlog::trace("{} fill udp peer id:{} tcp://{} udp://{}", __func__, id, it->first->remote_endpoint(), udp_peer);
+    spdlog::info("{} fill udp peer id:{} tcp://{} udp://{}", __func__, id, it->first->remote_endpoint(), udp_peer);
 }
 
 void network_manager::broadcast_audio_data(const char* data, size_t count, int block_align)
@@ -342,7 +398,7 @@ void network_manager::broadcast_audio_data(const char* data, size_t count, int b
     if (count <= 0) {
         return;
     }
-    //spdlog::trace("broadcast_audio_data count: {}", count);
+    // spdlog::trace("broadcast_audio_data count: {}", count);
 
     // divide udp frame
     constexpr int mtu = 1492;
@@ -360,9 +416,9 @@ void network_manager::broadcast_audio_data(const char* data, size_t count, int b
     }
 
     _ioc->post([seg_list = std::move(seg_list), self = shared_from_this()] {
-        for (auto seg : seg_list) {
+        for (const auto& seg : seg_list) {
             for (auto& [peer, info] : self->_playing_peer_list) {
-                self->_udp_server->async_send_to(asio::buffer(*seg), info->udp_peer, [seg](const asio::error_code& ec, std::size_t bytes_transferred) {});
+                self->_udp_server->async_send_to(asio::buffer(*seg), info->udp_peer, [seg](const asio::error_code& ec, std::size_t bytes_transferred) { });
             }
         }
     });

@@ -30,7 +30,7 @@ public:
 	afx_msg void OnBnClickedWhenAppStart(UINT nID);
 	afx_msg void OnBnClickedWhenCloseButton(UINT nID);
 	afx_msg void OnBnClickedButtonUpdate();
-	void CheckForUpdate(BOOL bPromptError);
+	void CheckForUpdate(bool bPromptError);
 
 public:
 	LPCWSTR m_lpszSection;
@@ -49,4 +49,6 @@ public:
 	// auto check for update
 	BOOL m_bAutoUpdate;
 	afx_msg void OnTimer(UINT_PTR nIDEvent);
+	CComboBox m_comboLanguage;
+	afx_msg void OnCbnSelchangeComboLanguage();
 };

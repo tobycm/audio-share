@@ -186,8 +186,8 @@ BOOL CMainDialog::OnInitDialog()
         new CAppSettingsTabPanel(this),
     };
 
-    m_tabCtrl.SetItemSize(CSize(0, 50));
-    m_tabCtrl.SetPadding(CSize(50, 0));
+    m_tabCtrl.SetItemSize(CSize(0, dpToPx(30)));
+    m_tabCtrl.SetPadding(CSize(dpToPx(20), 0));
 
     CRect childRect, tabRect, itemRect;
     m_tabCtrl.GetClientRect(&childRect);
@@ -252,7 +252,7 @@ LRESULT CMainDialog::OnNotifyIcon(WPARAM wParam, LPARAM lParam)
     auto pos_y = GET_Y_LPARAM(wParam);
 
     if (event == WM_LBUTTONDOWN) {
-        this->OnAppShow();
+        this->SendMessageW(WM_COMMAND, ID_APP_SHOW);
     }
     else if (event == WM_RBUTTONDOWN) {
         // https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-trackpopupmenu#remarks
@@ -314,14 +314,15 @@ void CMainDialog::OnAppAbout()
 
 void CMainDialog::OnUpdateStartServer(CCmdUI* pCmdUI)
 {
-    pCmdUI->SetText(m_tabPanelServer->IsRunning() ? L"Stop Server" : L"Start Server");
+    CString s;
+    s.LoadStringW(m_tabPanelServer->IsRunning() ? IDS_STOP_SERVER : IDS_START_SERVER);
+    pCmdUI->SetText(s);
 }
 
 void CMainDialog::OnStartServer()
 {
     m_tabPanelServer->SwitchServer();
 }
-
 
 void CMainDialog::OnAppExit()
 {

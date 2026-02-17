@@ -14,20 +14,20 @@
    limitations under the License.
 */
 
-#ifndef _FORMATTER
-#define _FORMATTER
+#ifndef FORMATTER_HPP
+#define FORMATTER_HPP
 
 #include <fmt/ostream.h>
 
+#include "pre_asio.hpp"
 #include <asio.hpp>
 
 template<> struct fmt::formatter<asio::ip::tcp::endpoint> : fmt::ostream_formatter {};
 template<> struct fmt::formatter<asio::ip::udp::endpoint> : fmt::ostream_formatter {};
-template <> struct fmt::formatter<asio::error_code> : fmt::formatter<std::string> {
-    template <typename FormatContext>
-    auto format(asio::error_code& ec, FormatContext& ctx) const {
+template<> struct fmt::formatter<asio::error_code> : fmt::formatter<std::string_view> {
+    auto format(asio::error_code& ec, format_context& ctx) const {
         return formatter<string_view>::format(ec.message(), ctx);
     }
 };
 
-#endif // !_FORMATTER
+#endif // !FORMATTER_HPP

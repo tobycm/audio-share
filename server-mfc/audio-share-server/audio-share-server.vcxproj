@@ -78,21 +78,25 @@
     <LinkIncremental>true</LinkIncremental>
     <TargetName>AudioShareServer</TargetName>
     <IntDir>$(Platform)\$(Configuration)\obj\</IntDir>
+    <CustomBuildBeforeTargets>ClCompile</CustomBuildBeforeTargets>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
     <TargetName>AudioShareServer</TargetName>
     <IntDir>$(Configuration)\obj\</IntDir>
+    <CustomBuildBeforeTargets>ClCompile</CustomBuildBeforeTargets>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
     <TargetName>AudioShareServer</TargetName>
     <IntDir>$(Configuration)\obj\</IntDir>
+    <CustomBuildBeforeTargets>ClCompile</CustomBuildBeforeTargets>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
     <TargetName>AudioShareServer</TargetName>
     <IntDir>$(Platform)\$(Configuration)\obj\</IntDir>
+    <CustomBuildBeforeTargets>ClCompile</CustomBuildBeforeTargets>
   </PropertyGroup>
   <PropertyGroup Label="Vcpkg" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <VcpkgTriplet>$(PlatformTarget)-windows-static-md</VcpkgTriplet>
@@ -110,12 +114,12 @@
     <ClCompile>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
-      <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_WINDOWS;_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <LanguageStandard_C>stdc17</LanguageStandard_C>
       <AdditionalIncludeDirectories>$(SolutionDir)..\server-core\src\;$(ProjectDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+      <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -130,17 +134,28 @@
       <PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>$(IntDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ResourceCompile>
+    <Manifest>
+      <EnableDpiAwareness>true</EnableDpiAwareness>
+    </Manifest>
+    <CustomBuildStep>
+      <Command>python.exe $(ProjectDir)i18n\generate_rc.py $(ProjectDir)i18n\strings.csv $(ProjectDir)AudioShareServer.rc $(ProjectDir)i18n\</Command>
+    </CustomBuildStep>
+    <CustomBuildStep>
+      <Message>generate i18n rc file</Message>
+      <Inputs>$(ProjectDir)i18n\strings.csv;$(ProjectDir)AudioShareServer.rc;%(Inputs)</Inputs>
+      <Outputs>$(ProjectDir)i18n\AudioShareServer_zh-CN.rc;%(Outputs)</Outputs>
+    </CustomBuildStep>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
-      <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>WIN32;_WINDOWS;_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <LanguageStandard_C>stdc17</LanguageStandard_C>
       <AdditionalIncludeDirectories>$(SolutionDir)..\server-core\src\;$(ProjectDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+      <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -155,6 +170,17 @@
       <PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>$(IntDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ResourceCompile>
+    <Manifest>
+      <EnableDpiAwareness>true</EnableDpiAwareness>
+    </Manifest>
+    <CustomBuildStep>
+      <Command>python.exe $(ProjectDir)i18n\generate_rc.py $(ProjectDir)i18n\strings.csv $(ProjectDir)AudioShareServer.rc $(ProjectDir)i18n\</Command>
+    </CustomBuildStep>
+    <CustomBuildStep>
+      <Message>generate i18n rc file</Message>
+      <Inputs>$(ProjectDir)i18n\strings.csv;$(ProjectDir)AudioShareServer.rc;%(Inputs)</Inputs>
+      <Outputs>$(ProjectDir)i18n\AudioShareServer_zh-CN.rc;%(Outputs)</Outputs>
+    </CustomBuildStep>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
@@ -162,12 +188,12 @@
       <WarningLevel>Level3</WarningLevel>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>WIN32;_WINDOWS;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <LanguageStandard_C>stdc17</LanguageStandard_C>
       <AdditionalIncludeDirectories>$(SolutionDir)..\server-core\src\;$(ProjectDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+      <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -184,6 +210,17 @@
       <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>$(IntDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ResourceCompile>
+    <Manifest>
+      <EnableDpiAwareness>true</EnableDpiAwareness>
+    </Manifest>
+    <CustomBuildStep>
+      <Command>python.exe $(ProjectDir)i18n\generate_rc.py $(ProjectDir)i18n\strings.csv $(ProjectDir)AudioShareServer.rc $(ProjectDir)i18n\</Command>
+    </CustomBuildStep>
+    <CustomBuildStep>
+      <Message>generate i18n rc file</Message>
+      <Inputs>$(ProjectDir)i18n\strings.csv;$(ProjectDir)AudioShareServer.rc;%(Inputs)</Inputs>
+      <Outputs>$(ProjectDir)i18n\AudioShareServer_zh-CN.rc;%(Outputs)</Outputs>
+    </CustomBuildStep>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
@@ -191,12 +228,12 @@
       <WarningLevel>Level3</WarningLevel>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_WINDOWS;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <LanguageStandard_C>stdc17</LanguageStandard_C>
       <AdditionalIncludeDirectories>$(SolutionDir)..\server-core\src\;$(ProjectDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+      <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -213,6 +250,17 @@
       <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>$(IntDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ResourceCompile>
+    <Manifest>
+      <EnableDpiAwareness>true</EnableDpiAwareness>
+    </Manifest>
+    <CustomBuildStep>
+      <Command>python.exe $(ProjectDir)i18n\generate_rc.py $(ProjectDir)i18n\strings.csv $(ProjectDir)AudioShareServer.rc $(ProjectDir)i18n\</Command>
+    </CustomBuildStep>
+    <CustomBuildStep>
+      <Message>generate i18n rc file</Message>
+      <Inputs>$(ProjectDir)i18n\strings.csv;$(ProjectDir)AudioShareServer.rc;%(Inputs)</Inputs>
+      <Outputs>$(ProjectDir)i18n\AudioShareServer_zh-CN.rc;%(Outputs)</Outputs>
+    </CustomBuildStep>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="..\..\server-core\src\audio_manager.hpp" />
@@ -279,6 +327,12 @@
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="AudioShareServer.rc" />
+    <ResourceCompile Include="i18n\AudioShareServer_zh-CN.rc">
+      <Culture Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">0x0804</Culture>
+      <Culture Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">0x0804</Culture>
+      <Culture Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">0x0804</Culture>
+      <Culture Condition="'$(Configuration)|$(Platform)'=='Release|x64'">0x0804</Culture>
+    </ResourceCompile>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="..\..\protos\client.proto">
@@ -296,12 +350,11 @@
       <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">%(Command)</Message>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(ProjectDir)%(Filename).pb.h;$(ProjectDir)%(Filename).pb.cc;%(Outputs)</Outputs>
     </CustomBuild>
-    <None Include="res\AudioShareServer.rc2" />
     <None Include="settings.props" />
   </ItemGroup>
   <ItemGroup>
+    <Image Include="res\AudioShareServer.bmp" />
     <Image Include="res\AudioShareServer.ico" />
-    <Image Include="res\refresh.png" />
   </ItemGroup>
   <Import Project="settings.props" />
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

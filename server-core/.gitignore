@@ -2,3 +2,8 @@
 *.pb.cc
 .vscode
 out
+.idea
+.vs
+*.dmp
+*.log
+*.dot

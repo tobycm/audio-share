@@ -1,4 +1,4 @@
-/**
+/*
  *    Copyright 2022-2024 mkckr0 <https://github.com/mkckr0>
  *
  *    Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,30 +14,31 @@
  *    limitations under the License.
  */
 
-import com.google.protobuf.gradle.proto
-import org.jetbrains.kotlin.gradle.plugin.mpp.pm20.util.archivesName
+@file:Suppress("UnstableApiUsage")
+
 import java.util.Properties
+import com.google.protobuf.gradle.proto
 
 plugins {
-    id("com.android.application")
-    kotlin("android")
-    kotlin("kapt")
-    kotlin("plugin.serialization")
-    kotlin("plugin.parcelize")
-    id("com.google.protobuf")
+    alias(libs.plugins.android.application)
+    alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.kotlin.plugin.serialization)
+    alias(libs.plugins.kotlin.plugin.parcelize)
+    alias(libs.plugins.protobuf)
 }
 
 android {
     namespace = "io.github.mkckr0.audio_share_app"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "io.github.mkckr0.audio_share_app"
         minSdk = 23
-        targetSdk = 34
-        versionCode = 1000
-        versionName = "0.1.0"
-        archivesName.set("${rootProject.name}-$versionName")
+        targetSdk = 35
+        versionCode = 3004
+        versionName = "0.3.4"
+        base.archivesName = "${rootProject.name}-$versionName"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -58,6 +59,8 @@ android {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
+            isDebuggable = false
+            isProfileable = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             signingConfig = signingConfigs["release"]
         }
@@ -68,8 +71,7 @@ android {
     }
 
     buildFeatures {
-        viewBinding = true
-        dataBinding = true
+        compose = true
         buildConfig = true
     }
 
@@ -81,43 +83,54 @@ android {
         }
     }
 
-    packaging {
-        resources {
-            merges += "META-INF/INDEX.LIST"
-            merges += "META-INF/io.netty.versions.properties"
-        }
+    dependenciesInfo {
+        includeInApk = false
+        includeInBundle = false
+    }
+
+    androidResources {
+        generateLocaleConfig = true
     }
 }
 
-val protobufVersion = "3.25.2"
-
 dependencies {
 
-    val navVersion = "2.7.7"
-    val ktorVersion = "2.3.8"
-    val workVersion = "2.9.0"
+    implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.androidx.activity.compose)
+    implementation(platform(libs.androidx.compose.bom))
+    implementation(libs.androidx.ui)
+    implementation(libs.androidx.ui.graphics)
+    implementation(libs.androidx.ui.tooling.preview)
+    implementation(libs.androidx.material3)
+    implementation(libs.androidx.work.runtime.ktx)
+    implementation(libs.androidx.navigation.compose)
+    implementation(libs.androidx.material.icons.extended)
+    implementation(libs.androidx.media3.session)
+    implementation(libs.androidx.datastore.preferences)
+    implementation(libs.ktor.client.android)
+    implementation(libs.ktor.client.content.negotiation)
+    implementation(libs.ktor.serialization.kotlinx.json)
+    implementation(libs.ktor.network)
+    implementation(libs.google.protobuf.kotlin.lite)
+    implementation(libs.material.kolor)
+    implementation(libs.kotlinx.coroutines.guava)
 
-    implementation("androidx.core:core-ktx:1.12.0")
-    implementation("androidx.appcompat:appcompat:1.6.1")
-    implementation("androidx.navigation:navigation-fragment-ktx:$navVersion")
-    implementation("androidx.navigation:navigation-ui-ktx:$navVersion")
-    implementation("androidx.preference:preference:1.2.1")
-    implementation("androidx.work:work-runtime-ktx:$workVersion")
-    implementation("com.google.android.material:material:1.11.0")
-    implementation("com.google.protobuf:protobuf-kotlin-lite:$protobufVersion")
-    implementation("io.netty:netty-all:4.1.106.Final")
-    implementation("io.ktor:ktor-client-android:$ktorVersion")
-    implementation("io.ktor:ktor-client-content-negotiation:$ktorVersion")
-    implementation("io.ktor:ktor-serialization-kotlinx-json:$ktorVersion")
+    testImplementation(libs.junit)
+    testImplementation(platform(libs.androidx.compose.bom))
 
-    testImplementation("junit:junit:4.13.2")
-    androidTestImplementation("androidx.test.ext:junit:1.1.5")
-    androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
+    androidTestImplementation(libs.androidx.junit)
+    androidTestImplementation(libs.androidx.espresso.core)
+    androidTestImplementation(platform(libs.androidx.compose.bom))
+    androidTestImplementation(libs.androidx.ui.test.junit4)
+
+    debugImplementation(libs.androidx.ui.tooling)
+    debugImplementation(libs.androidx.ui.test.manifest)
 }
 
 protobuf {
     protoc {
-        artifact = "com.google.protobuf:protoc:$protobufVersion"
+        artifact = "com.google.protobuf:protoc:${libs.versions.protobuf.get()}"
     }
     generateProtoTasks {
         all().forEach { task ->

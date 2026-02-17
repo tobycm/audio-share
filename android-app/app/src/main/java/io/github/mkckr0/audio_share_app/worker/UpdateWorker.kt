@@ -1,3 +1,19 @@
+/*
+ *    Copyright 2022-2024 mkckr0 <https://github.com/mkckr0>
+ *
+ *    Licensed under the Apache License, Version 2.0 (the "License");
+ *    you may not use this file except in compliance with the License.
+ *    You may obtain a copy of the License at
+ *
+ *        http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *    Unless required by applicable law or agreed to in writing, software
+ *    distributed under the License is distributed on an "AS IS" BASIS,
+ *    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *    See the License for the specific language governing permissions and
+ *    limitations under the License.
+ */
+
 package io.github.mkckr0.audio_share_app.worker
 
 import android.Manifest
@@ -10,16 +26,16 @@ import android.widget.Toast
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.contentValuesOf
 import androidx.work.Worker
 import androidx.work.WorkerParameters
-import com.google.android.material.snackbar.Snackbar
 import io.github.mkckr0.audio_share_app.BuildConfig
-import io.github.mkckr0.audio_share_app.Channel
-import io.github.mkckr0.audio_share_app.MainActivity
-import io.github.mkckr0.audio_share_app.Notification
+import io.github.mkckr0.audio_share_app.ui.MainActivity
 import io.github.mkckr0.audio_share_app.R
-import io.github.mkckr0.audio_share_app.Util
+import io.github.mkckr0.audio_share_app.model.Channel
 import io.github.mkckr0.audio_share_app.model.LatestRelease
+import io.github.mkckr0.audio_share_app.model.Notification
+import io.github.mkckr0.audio_share_app.model.Util
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
@@ -38,7 +54,7 @@ class UpdateWorker(appContext: Context, workerParams: WorkerParameters) : Worker
     
     @OptIn(ExperimentalSerializationApi::class)
     override fun doWork(): Result {
-        Log.d(tag, "doWork")
+        Log.d(tag, "UpdateWorker doWork")
         suppressMessage = inputData.getBoolean("SUPPRESS_MESSAGE", false)
         MainScope().launch(Dispatchers.IO) {
             val httpClient = HttpClient {
@@ -58,7 +74,7 @@ class UpdateWorker(appContext: Context, workerParams: WorkerParameters) : Worker
 
             withContext(Dispatchers.Main) {
                 if (!Util.isNewerVersion(latestRelease.tagName, "v${BuildConfig.VERSION_NAME}")) {
-                    showMessage("No update")
+                    showMessage(applicationContext.getString(R.string.label_no_update))
                     return@withContext
                 }
 
@@ -66,7 +82,7 @@ class UpdateWorker(appContext: Context, workerParams: WorkerParameters) : Worker
                     it.name.matches(Regex("audio-share-app-[0-9.]*-release.apk"))
                 }
                 if (apkAsset == null) {
-                    showMessage("Has an update, but no APK")
+                    showMessage(applicationContext.getString(R.string.label_has_an_update_1))
                     return@withContext
                 }
 
@@ -76,7 +92,7 @@ class UpdateWorker(appContext: Context, workerParams: WorkerParameters) : Worker
                             Manifest.permission.POST_NOTIFICATIONS
                         ) != PackageManager.PERMISSION_GRANTED
                     ) {
-                        showMessage("Post notification permission is denied")
+                        showMessage("No permission to post notification")
                         return@with
                     }
 
@@ -97,14 +113,14 @@ class UpdateWorker(appContext: Context, workerParams: WorkerParameters) : Worker
                         Channel.UPDATE.id
                     )
                         .setSmallIcon(R.drawable.baseline_update)
-                        .setContentTitle("Has an update(${latestRelease.tagName})")
-                        .setContentText("Tap this notification to start downloading")
+                        .setContentTitle(applicationContext.getString(R.string.label_has_an_update_2).format(latestRelease.tagName))
+                        .setContentText(applicationContext.getString(R.string.label_tap_notification_1))
                         .setContentIntent(pendingIntent)
                         .setAutoCancel(true)
                         .build()
 
                     notify(Notification.UPDATE.id, notification)
-                    showMessage("Has an update, tap the notification to start downloading")
+                    showMessage(applicationContext.getString(R.string.label_tap_notification_2))
                 }
             }
         }

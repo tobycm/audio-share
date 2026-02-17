@@ -1,10 +1,24 @@
-<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="audio_buffer_size_scale">4</string>
-    <string name="audio_tcp_connect_timeout">3000</string>
-    <string name="audio_loudness_enhancer">100</string>
-    <bool name="theme_use_wallpaper_default">true</bool>
-    <bool name="debug_enable_copy_exception_default">false</bool>
-    <bool name="update_auto_check_default">false</bool>
-    <string name="theme_color_default">#496727</string>
+    <string name="app_name" translatable="false">Audio Share</string>
+
+    <!-- Network Config Defaults -->
+    <string name="default_host" translatable="false">192.168.</string>
+    <integer name="default_port" translatable="false">65530</integer>
+
+    <!-- Audio Config Defaults -->
+    <string name="default_volume" translatable="false">1</string>
+    <string name="default_buffer_scale" translatable="false">1</string>
+    <string name="default_loudness_enhancer" translatable="false">0</string>
+
+    <!-- App Settings Defaults -->
+    <bool name="default_start_playback_when_system_boot" translatable="false">false</bool>
+    <bool name="default_start_playback_when_app_start" translatable="false">false</bool>
+    <bool name="default_dynamic_color_from_wallpaper" translatable="false">false</bool>
+    <string name="default_dynamic_color_from_seed_color" translatable="false">#63A002</string>
+    <bool name="default_auto_check_for_update" translatable="false">false</bool>
+
+    <!-- URLs -->
+    <string name="project_url" translatable="false">https://github.com/mkckr0/audio-share</string>
+    <string name="latest_release_url" translatable="false">https://github.com/mkckr0/audio-share/releases/latest</string>
+    <string name="issues_url" translatable="false">https://github.com/mkckr0/audio-share/issues</string>
 </resources>

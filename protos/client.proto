@@ -22,8 +22,16 @@ option go_package = "go-client/pb";
 
 message AudioFormat
 {
-	int32 format_tag = 1;
+   enum Encoding {
+      ENCODING_INVALID = 0;
+      ENCODING_PCM_FLOAT = 1;   // PCM encoding are all little endian
+      ENCODING_PCM_8BIT = 2;
+      ENCODING_PCM_16BIT = 3;
+      ENCODING_PCM_24BIT = 4;
+      ENCODING_PCM_32BIT = 5;
+   }
+
+	Encoding encoding = 1;
 	int32 channels = 2;
 	int32 sample_rate = 3;
-	int32 bits_per_sample = 4;
 }

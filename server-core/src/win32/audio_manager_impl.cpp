@@ -21,25 +21,80 @@
 #include "network_manager.hpp"
 
 #include <spdlog/spdlog.h>
-
-#include <fstream>
-#include <functional>
+#include <wil/com.h>
 #include <iostream>
 #include <vector>
+#include <cstdlib>
 
-#include <atlbase.h>
-#include <combaseapi.h>
-#include <mmreg.h>
-#include <mmdeviceapi.h>
+#include <initguid.h>
+#include <Mmdeviceapi.h>
 #include <Functiondiscoverykeys_devpkey.h>
 #include <Audioclient.h>
 #include <Audiopolicy.h>
 
 using namespace io::github::mkckr0::audio_share_app::pb;
 
-void exit_on_failed(HRESULT hr, const char* message = "", const char* func = "");
-void print_endpoints(CComPtr<IMMDeviceCollection> pColletion);
-void set_format(std::shared_ptr<AudioFormat> _format, WAVEFORMATEX* format);
+std::string to_string(PWAVEFORMATEX pFormat)
+{
+    std::ostringstream ss;
+    ss << "\twFormatTag: ";
+    switch (pFormat->wFormatTag) {
+    case WAVE_FORMAT_PCM:
+        ss << "WAVE_FORMAT_PCM";
+        break;
+    case WAVE_FORMAT_IEEE_FLOAT:
+        ss << "WAVE_FORMAT_IEEE_FLOAT";
+        break;
+    case WAVE_FORMAT_EXTENSIBLE:
+        ss << "WAVE_FORMAT_EXTENSIBLE";
+        break;
+    default:
+        ss << pFormat->wFormatTag;
+        break;
+    }
+    ss << "\n"
+       << "\tnChannels: " << pFormat->nChannels << "\n"
+       << "\tnSamplesPerSec: " << pFormat->nSamplesPerSec << "\n"
+       << "\tnAvgBytesPerSec: " << pFormat->nAvgBytesPerSec << "\n"
+       << "\tnBlockAlign: " << pFormat->nBlockAlign << "\n"
+       << "\twBitsPerSample: " << pFormat->wBitsPerSample << "\n"
+       << "\tcbSize: " << pFormat->cbSize << "\n";
+    if (pFormat->wFormatTag == WAVE_FORMAT_EXTENSIBLE) {
+        auto pFormatExt = (PWAVEFORMATEXTENSIBLE)pFormat;
+        ss << "\tSamples.wValidBitsPerSample: " << pFormatExt->Samples.wValidBitsPerSample << "\n"
+           << "\tSamples.wSamplesPerBlock: " << pFormatExt->Samples.wSamplesPerBlock << "\n"
+           << "\tdwChannelMask: " << pFormatExt->dwChannelMask << "\n"
+           << "\tSubFormat: ";
+        if (pFormatExt->SubFormat == KSDATAFORMAT_SUBTYPE_PCM) {
+            ss << "KSDATAFORMAT_SUBTYPE_PCM" << "\n";
+        } else if (pFormatExt->SubFormat == KSDATAFORMAT_SUBTYPE_IEEE_FLOAT) {
+            ss << "KSDATAFORMAT_SUBTYPE_IEEE_FLOAT" << "\n";
+        } else {
+            WCHAR lpsz[sizeof(GUID)];
+            StringFromGUID2(pFormatExt->SubFormat, lpsz, sizeof(GUID));
+            ss << wchars_to_mbs(lpsz) << "\n";
+        }
+    }
+    return ss.str();
+}
+
+std::wstring to_wstring(PWAVEFORMATEX pFormat)
+{
+    return mbs_to_wchars(to_string(pFormat));
+}
+
+template <>
+struct fmt::formatter<WAVEFORMATEX> : fmt::formatter<std::string_view> {
+    auto format(WAVEFORMATEX& wave_format, format_context& ctx) const
+    {
+        return formatter<std::string_view>::format(to_string(&wave_format), ctx);
+    }
+};
+
+static void exit_on_failed(HRESULT hr, const char* message = "", const char* func = "");
+static void print_endpoints(wil::com_ptr<IMMDeviceCollection>& pCollection);
+static void set_format(std::shared_ptr<AudioFormat>& _format, PWAVEFORMATEX pFormat);
+static std::string get_device_name(IPropertyStore* pProp);
 
 namespace detail {
 
@@ -55,48 +110,117 @@ audio_manager_impl::~audio_manager_impl()
 
 } // namespace detail
 
-void audio_manager::do_loopback_recording(std::shared_ptr<network_manager> network_manager, const std::string& endpoint_id)
+void audio_manager::do_loopback_recording(std::shared_ptr<network_manager> network_manager, const capture_config& config)
 {
-    spdlog::info("endpoint_id: {}", endpoint_id);
+    spdlog::info("endpoint_id: {}", config.endpoint_id);
 
-    HRESULT hr {};
+    HRESULT hr;
 
-    CComPtr<IMMDeviceEnumerator> pEnumerator;
-    hr = pEnumerator.CoCreateInstance(__uuidof(MMDeviceEnumerator));
-    exit_on_failed(hr);
+    auto pEnumerator = wil::CoCreateInstance<MMDeviceEnumerator, IMMDeviceEnumerator>();
 
-    CComPtr<IMMDevice> pEndpoint;
-    hr = pEnumerator->GetDevice(mbs_to_wchars(endpoint_id).c_str(), &pEndpoint);
-    exit_on_failed(hr);
+    wil::com_ptr<IMMDevice> pEndpoint;
+    if (config.endpoint_id.empty() || config.endpoint_id == "default") {
+        hr = pEnumerator->GetDefaultAudioEndpoint(eRender, eConsole, &pEndpoint);
+        exit_on_failed(hr, "can't find default audio endpoint");
+    } else {
+        hr = pEnumerator->GetDevice(mbs_to_wchars(config.endpoint_id).c_str(), &pEndpoint);
+        exit_on_failed(hr);
+    }
 
-    CComPtr<IPropertyStore> pProps;
+    wil::com_ptr<IPropertyStore> pProps;
     hr = pEndpoint->OpenPropertyStore(STGM_READ, &pProps);
     exit_on_failed(hr);
-    PROPVARIANT varName;
-    PropVariantInit(&varName);
-    hr = pProps->GetValue(PKEY_Device_FriendlyName, &varName);
-    exit_on_failed(hr);
-    spdlog::info("select audio endpoint: {}", wchars_to_utf8(varName.pwszVal));
-    PropVariantClear(&varName);
+    auto device_name = get_device_name(pProps.get());
+    spdlog::info("select audio endpoint: {}", device_name);
 
-    CComPtr<IAudioClient> pAudioClient;
+    wil::com_ptr<IAudioClient> pAudioClient;
     hr = pEndpoint->Activate(__uuidof(IAudioClient), CLSCTX_ALL, nullptr, (void**)&pAudioClient);
     exit_on_failed(hr);
 
-    CComHeapPtr<WAVEFORMATEX> pCaptureFormat;
-    pAudioClient->GetMixFormat(&pCaptureFormat);
+    wil::unique_cotaskmem_ptr<WAVEFORMATEX> pMixFormat;
+    pAudioClient->GetMixFormat(wil::out_param(pMixFormat));
+    spdlog::info("default mix format:\n{}", *pMixFormat);
 
-    set_format(_format, pCaptureFormat);
+    wil::unique_cotaskmem_ptr<WAVEFORMATEX> pCaptureFormat;
+    if (pMixFormat->wFormatTag == WAVE_FORMAT_EXTENSIBLE) {
+        pCaptureFormat.reset((PWAVEFORMATEX)CoTaskMemAlloc(sizeof(WAVEFORMATEXTENSIBLE)));
+        std::memcpy(pCaptureFormat.get(), pMixFormat.get(), sizeof(WAVEFORMATEXTENSIBLE));
+    } else {
+        pCaptureFormat = wil::make_unique_cotaskmem<WAVEFORMATEX>(*pMixFormat);
+    }
+    
+    if (config.encoding == encoding_t::encoding_invalid) {
+        spdlog::error("invalid encoding");
+        return;
+    } else if (config.encoding != encoding_t::encoding_default) {
+        if (pCaptureFormat->wFormatTag == WAVE_FORMAT_EXTENSIBLE) {
+            ((PWAVEFORMATEXTENSIBLE)pCaptureFormat.get())->SubFormat = config.encoding == encoding_t::encoding_f32 ? KSDATAFORMAT_SUBTYPE_IEEE_FLOAT : KSDATAFORMAT_SUBTYPE_PCM;
+        } else {
+            pCaptureFormat->wFormatTag = config.encoding == encoding_t::encoding_f32 ? WAVE_FORMAT_IEEE_FLOAT : WAVE_FORMAT_PCM;
+        }
+        switch (config.encoding) {
+        case encoding_t::encoding_f32:
+            pCaptureFormat->wBitsPerSample = 32;
+            break;
+        case encoding_t::encoding_s8:
+            pCaptureFormat->wBitsPerSample = 8;
+            break;
+        case encoding_t::encoding_s16:
+            pCaptureFormat->wBitsPerSample = 16;
+            break;
+        case encoding_t::encoding_s24:
+            pCaptureFormat->wBitsPerSample = 24;
+            break;
+        case encoding_t::encoding_s32:
+            pCaptureFormat->wBitsPerSample = 32;
+            break;
+        default:
+            break;
+        }
+        if (pCaptureFormat->wFormatTag == WAVE_FORMAT_EXTENSIBLE) {
+            ((PWAVEFORMATEXTENSIBLE)pCaptureFormat.get())->Samples.wValidBitsPerSample = pCaptureFormat->wBitsPerSample;
+        }
+    }
+    if (config.channels) {
+        pCaptureFormat->nChannels = config.channels;
+    }
+    pCaptureFormat->nBlockAlign = pCaptureFormat->wBitsPerSample * pCaptureFormat->nChannels / 8;
+    if (config.sample_rate) {
+        pCaptureFormat->nSamplesPerSec = config.sample_rate;
+    }
+    pCaptureFormat->nAvgBytesPerSec = pCaptureFormat->nSamplesPerSec * pCaptureFormat->nBlockAlign;
 
-    constexpr static int REFTIMES_PER_SEC = 10000000; // 1 reference_time = 100ns
-    constexpr static int REFTIMES_PER_MILLISEC = 10000;
+    spdlog::info("request capture format:\n{}", *pCaptureFormat);
+
+    // check format is valid
+    wil::unique_cotaskmem_ptr<WAVEFORMATEX> pClosestMatchFormat;
+    hr = pAudioClient->IsFormatSupported(AUDCLNT_SHAREMODE_SHARED, pCaptureFormat.get(), wil::out_param(pClosestMatchFormat));
+    if (hr == AUDCLNT_E_UNSUPPORTED_FORMAT) {
+        spdlog::error("the capture format is not supported");
+        return;
+    }
+    else if (hr == S_FALSE) {
+        spdlog::warn("the specified capture format is not supported, using a similar format");
+        pCaptureFormat = std::move(pClosestMatchFormat);
+    }
+    else if (hr == S_OK) {
+        spdlog::info("the specified capture format is supported");
+    }
+    else {
+        exit_on_failed(hr);
+    }
+
+    set_format(_format, pCaptureFormat.get());
+
+    constexpr int REFTIMES_PER_SEC = 10000000; // 1 reference_time = 100ns
+    constexpr int REFTIMES_PER_MILLISEC = 10000;
 
     REFERENCE_TIME hnsMinimumDevicePeriod = 0;
-    hr = pAudioClient->GetDevicePeriod(NULL, &hnsMinimumDevicePeriod);
+    hr = pAudioClient->GetDevicePeriod(nullptr, &hnsMinimumDevicePeriod);
     exit_on_failed(hr);
 
-    REFERENCE_TIME hnsRequestedDuration = 10 * REFTIMES_PER_SEC;
-    hr = pAudioClient->Initialize(AUDCLNT_SHAREMODE_SHARED, AUDCLNT_STREAMFLAGS_LOOPBACK, hnsRequestedDuration, 0, pCaptureFormat, nullptr);
+    REFERENCE_TIME hnsRequestedDuration = REFTIMES_PER_SEC; // 1s buffer
+    hr = pAudioClient->Initialize(AUDCLNT_SHAREMODE_SHARED, AUDCLNT_STREAMFLAGS_LOOPBACK, hnsRequestedDuration, 0, pCaptureFormat.get(), nullptr);
     exit_on_failed(hr);
 
     UINT32 bufferFrameCount {};
@@ -105,7 +229,7 @@ void audio_manager::do_loopback_recording(std::shared_ptr<network_manager> netwo
 
     spdlog::info("buffer size: {}", bufferFrameCount);
 
-    CComPtr<IAudioCaptureClient> pCaptureClient;
+    wil::com_ptr<IAudioCaptureClient> pCaptureClient;
     hr = pAudioClient->GetService(__uuidof(IAudioCaptureClient), (void**)&pCaptureClient);
     exit_on_failed(hr);
 
@@ -115,8 +239,10 @@ void audio_manager::do_loopback_recording(std::shared_ptr<network_manager> netwo
     const std::chrono::milliseconds duration { hnsMinimumDevicePeriod / REFTIMES_PER_MILLISEC };
     spdlog::info("device period: {}ms", duration.count());
 
+#ifdef DEBUG
     UINT32 frame_count = 0;
     int seconds {};
+#endif
 
     using namespace std::chrono_literals;
     asio::steady_timer timer(*network_manager->_ioc);
@@ -143,11 +269,11 @@ void audio_manager::do_loopback_recording(std::shared_ptr<network_manager> netwo
         UINT32 numFramesAvailable {};
         DWORD dwFlags {};
 
-        hr = pCaptureClient->GetBuffer(&pData, &numFramesAvailable, &dwFlags, NULL, NULL);
+        hr = pCaptureClient->GetBuffer(&pData, &numFramesAvailable, &dwFlags, nullptr, nullptr);
         exit_on_failed(hr, "pCaptureClient->GetBuffer");
 
         int bytes_per_frame = pCaptureFormat->nBlockAlign;
-        int count = numFramesAvailable * bytes_per_frame;
+        size_t count = numFramesAvailable * bytes_per_frame;
 
         network_manager->broadcast_audio_data((const char*)pData, count, pCaptureFormat->nBlockAlign);
 
@@ -160,137 +286,198 @@ void audio_manager::do_loopback_recording(std::shared_ptr<network_manager> netwo
         hr = pCaptureClient->ReleaseBuffer(numFramesAvailable);
         exit_on_failed(hr, "pCaptureClient->ReleaseBuffer");
 
-    } while (!_stoppped);
+    } while (!_stopped);
 }
 
-int audio_manager::get_endpoint_list(endpoint_list_t& endpoint_list)
+audio_manager::endpoint_list_t audio_manager::get_endpoint_list()
 {
     HRESULT hr {};
 
-    CComPtr<IMMDeviceEnumerator> pEnumerator;
-    hr = pEnumerator.CoCreateInstance(__uuidof(MMDeviceEnumerator));
-    exit_on_failed(hr);
+    auto pEnumerator = wil::CoCreateInstance<MMDeviceEnumerator, IMMDeviceEnumerator>();
 
-    CComPtr<IMMDeviceCollection> pColletion;
-    hr = pEnumerator->EnumAudioEndpoints(eRender, DEVICE_STATE_ACTIVE, &pColletion);
-    exit_on_failed(hr);
+    wil::com_ptr<IMMDeviceCollection> pCollection;
+    hr = pEnumerator->EnumAudioEndpoints(eRender, DEVICE_STATE_ACTIVE, &pCollection);
+    exit_on_failed(hr, "EnumAudioEndpoints", __func__);
+
+//    print_endpoints(pCollection);
 
     UINT count {};
-    hr = pColletion->GetCount(&count);
-    exit_on_failed(hr);
+    hr = pCollection->GetCount(&count);
+    exit_on_failed(hr, "GetCount", __func__);
 
-    int default_index = -1;
-    std::string default_id = get_default_endpoint();
+    endpoint_list_t endpoint_list;
 
     for (UINT i = 0; i < count; ++i) {
-        CComPtr<IMMDevice> pEndpoint;
-        hr = pColletion->Item(i, &pEndpoint);
-        exit_on_failed(hr);
+        wil::com_ptr<IMMDevice> pEndpoint;
+        hr = pCollection->Item(i, &pEndpoint);
+        exit_on_failed(hr, "Item", __func__);
 
-        CComHeapPtr<WCHAR> pwszID;
-        hr = pEndpoint->GetId(&pwszID);
-        exit_on_failed(hr);
+        wil::unique_cotaskmem_ptr<WCHAR> pwszID;
+        hr = pEndpoint->GetId(wil::out_param(pwszID));
+        exit_on_failed(hr, "GetId", __func__);
+        auto endpoint_id = wchars_to_mbs((LPWSTR)pwszID.get());
 
-        CComPtr<IPropertyStore> pProps;
+        wil::com_ptr<IPropertyStore> pProps;
         hr = pEndpoint->OpenPropertyStore(STGM_READ, &pProps);
-        exit_on_failed(hr);
+        exit_on_failed(hr, "OpenPropertyStore", __func__);
 
-        PROPVARIANT varName;
-        PropVariantInit(&varName);
-        hr = pProps->GetValue(PKEY_Device_FriendlyName, &varName);
-        exit_on_failed(hr);
+        auto name = get_device_name(pProps.get());
 
-        auto endpoint_id = wchars_to_mbs((LPWSTR)pwszID);
-        endpoint_list.push_back(std::make_pair(endpoint_id, wchars_to_mbs(varName.pwszVal)));
-
-        if (endpoint_id == default_id) {
-            default_index = i;
-        }
-
-        PropVariantClear(&varName);
+        endpoint_list.emplace_back(endpoint_id, name);
     }
 
-    return default_index;
+    return endpoint_list;
 }
 
 std::string audio_manager::get_default_endpoint()
 {
     HRESULT hr {};
 
-    CComPtr<IMMDeviceEnumerator> pEnumerator;
-    hr = pEnumerator.CoCreateInstance(__uuidof(MMDeviceEnumerator));
-    exit_on_failed(hr);
+    auto pEnumerator = wil::CoCreateInstance<MMDeviceEnumerator, IMMDeviceEnumerator>();
 
-    CComPtr<IMMDevice> pEndpoint;
+    wil::com_ptr<IMMDevice> pEndpoint;
     hr = pEnumerator->GetDefaultAudioEndpoint(eRender, eConsole, &pEndpoint);
     if (hr == HRESULT_FROM_WIN32(ERROR_NOT_FOUND)) {
         return {};
     }
-    exit_on_failed(hr);
+    exit_on_failed(hr, "GetDefaultAudioEndpoint", __func__);
 
-    CComHeapPtr<WCHAR> pwszID;
-    hr = pEndpoint->GetId(&pwszID);
-    exit_on_failed(hr);
+    wil::unique_cotaskmem_ptr<WCHAR> pwszID;
+    hr = pEndpoint->GetId(wil::out_param(pwszID));
+    exit_on_failed(hr, "GetId", __func__);
 
-    return wchars_to_mbs((LPWSTR)pwszID);
+    return wchars_to_mbs((LPWSTR)pwszID.get());
 }
 
-void set_format(std::shared_ptr<AudioFormat> _format, WAVEFORMATEX* format)
+static void set_format(std::shared_ptr<AudioFormat>& _format, PWAVEFORMATEX pFormat)
 {
-    if (format->wFormatTag == WAVE_FORMAT_PCM || format->wFormatTag == WAVE_FORMAT_IEEE_FLOAT) {
-        _format->set_format_tag(format->wFormatTag);
-    } else if (format->wFormatTag == WAVE_FORMAT_EXTENSIBLE) {
-        auto p = (WAVEFORMATEXTENSIBLE*)(format);
-        if (IsEqualGUID(p->SubFormat, KSDATAFORMAT_SUBTYPE_PCM)) {
-            _format->set_format_tag(WAVE_FORMAT_PCM);
-        } else if (IsEqualGUID(p->SubFormat, KSDATAFORMAT_SUBTYPE_IEEE_FLOAT)) {
-            _format->set_format_tag(WAVE_FORMAT_IEEE_FLOAT);
+    auto encoding = AudioFormat_Encoding_ENCODING_INVALID;
+    if (pFormat->wFormatTag == WAVE_FORMAT_PCM || pFormat->wFormatTag == WAVE_FORMAT_EXTENSIBLE && PWAVEFORMATEXTENSIBLE(pFormat)->SubFormat == KSDATAFORMAT_SUBTYPE_PCM) {
+        switch (pFormat->wBitsPerSample) {
+        case 8:
+            encoding = AudioFormat_Encoding_ENCODING_PCM_8BIT;
+            break;
+        case 16:
+            encoding = AudioFormat_Encoding_ENCODING_PCM_16BIT;
+            break;
+        case 24:
+            encoding = AudioFormat_Encoding_ENCODING_PCM_24BIT;
+            break;
+        case 32:
+            encoding = AudioFormat_Encoding_ENCODING_PCM_32BIT;
+            break;
         }
+        _format->set_encoding(encoding);
     }
-    _format->set_channels(format->nChannels);
-    _format->set_sample_rate(format->nSamplesPerSec);
-    _format->set_bits_per_sample(format->wBitsPerSample);
+    if (pFormat->wFormatTag == WAVE_FORMAT_IEEE_FLOAT || pFormat->wFormatTag == WAVE_FORMAT_EXTENSIBLE && PWAVEFORMATEXTENSIBLE(pFormat)->SubFormat == KSDATAFORMAT_SUBTYPE_IEEE_FLOAT) {
+        encoding = AudioFormat_Encoding_ENCODING_PCM_FLOAT;
+    }
+    _format->set_encoding(encoding);
+    _format->set_channels(pFormat->nChannels);
+    _format->set_sample_rate((int32_t)pFormat->nSamplesPerSec);
 
-    spdlog::info("WAVEFORMATEX: wFormatTag: {}, nBlockAlign: {}", format->wFormatTag, format->nBlockAlign);
+    spdlog::info("result capture format:\n{}", *pFormat);
     spdlog::info("AudioFormat:\n{}", _format->DebugString());
 }
 
-void print_endpoints(CComPtr<IMMDeviceCollection> pColletion)
+static std::string get_device_name(IPropertyStore* pProp)
 {
-    HRESULT hr {};
+    wil::unique_prop_variant varName;
+    pProp->GetValue(PKEY_Device_FriendlyName, &varName);
+    std::string name = "[Speakers]";
+    if (varName.vt == VT_LPWSTR) {
+        name = wchars_to_mbs(varName.pwszVal);
+    }
+    return name;
+}
+
+static void print_endpoints(wil::com_ptr<IMMDeviceCollection>& pCollection)
+{
+    HRESULT hr;
 
     UINT count {};
-    hr = pColletion->GetCount(&count);
+    hr = pCollection->GetCount(&count);
     exit_on_failed(hr);
 
     for (UINT i = 0; i < count; ++i) {
-        CComPtr<IMMDevice> pEndpoint;
-        hr = pColletion->Item(i, &pEndpoint);
+
+        std::wstringstream ss;
+
+        wil::com_ptr<IMMDevice> pEndpoint;
+        hr = pCollection->Item(i, &pEndpoint);
         exit_on_failed(hr);
 
-        CComHeapPtr<WCHAR> pwszID;
-        hr = pEndpoint->GetId(&pwszID);
+        wil::unique_cotaskmem_ptr<WCHAR> pwszID;
+        hr = pEndpoint->GetId(wil::out_param(pwszID));
         exit_on_failed(hr);
+        ss << "Id: " << pwszID.get() << "\n";
 
-        CComPtr<IPropertyStore> pProps;
+        wil::com_ptr<IPropertyStore> pProps;
         hr = pEndpoint->OpenPropertyStore(STGM_READ, &pProps);
         exit_on_failed(hr);
 
-        PROPVARIANT varName;
-        PropVariantInit(&varName);
-        hr = pProps->GetValue(PKEY_Device_FriendlyName, &varName);
+        wil::unique_prop_variant varFriendlyName;
+        hr = pProps->GetValue(PKEY_Device_FriendlyName, &varFriendlyName);
         exit_on_failed(hr);
+        ss << "PKEY_Device_FriendlyName: " << (varFriendlyName.vt == VT_LPWSTR ? varFriendlyName.pwszVal : L"") << "\n";
 
-        spdlog::info("{}", wchars_to_utf8(varName.pwszVal));
+        wil::unique_prop_variant varInstanceId;
+        hr = pProps->GetValue(PKEY_Device_InstanceId, &varInstanceId);
+        exit_on_failed(hr);
+        ss << "PKEY_Device_InstanceId: " << (varInstanceId.vt == VT_LPWSTR ? varInstanceId.pwszVal : L"") << "\n";
 
-        PropVariantClear(&varName);
+        wil::unique_prop_variant varContainerId;
+        hr = pProps->GetValue(PKEY_Device_ContainerId, &varContainerId);
+        exit_on_failed(hr);
+        ss << "PKEY_Device_ContainerId: " << (varContainerId.vt == VT_LPWSTR ? varContainerId.pwszVal : L"") << "\n";
+
+        wil::unique_prop_variant varDeviceDesc;
+        hr = pProps->GetValue(PKEY_Device_DeviceDesc, &varDeviceDesc);
+        exit_on_failed(hr);
+        ss << "PKEY_Device_DeviceDesc: " << varDeviceDesc.pwszVal << "\n";
+
+        wil::unique_prop_variant varDeviceInterfaceName;
+        hr = pProps->GetValue(PKEY_DeviceInterface_FriendlyName, &varDeviceInterfaceName);
+        exit_on_failed(hr);
+        ss << "PKEY_DeviceInterface_FriendlyName: " << varDeviceInterfaceName.pwszVal << "\n";
+
+        wil::unique_prop_variant varGUID;
+        hr = pProps->GetValue(PKEY_AudioEndpoint_GUID, &varGUID);
+        exit_on_failed(hr);
+        ss << "PKEY_AudioEndpoint_GUID: " << varGUID.pwszVal << "\n";
+
+        wil::unique_prop_variant varDeviceFormat;
+        hr = pProps->GetValue(PKEY_AudioEngine_DeviceFormat, &varDeviceFormat);
+        exit_on_failed(hr);
+        ss << "PKEY_AudioEngine_DeviceFormat: \n";
+        if (varDeviceFormat.vt == VT_BLOB) {
+            auto pFormat = (WAVEFORMATEX*)varDeviceFormat.blob.pBlobData;
+            ss << to_wstring(pFormat);
+        }
+
+        wil::unique_prop_variant varOemFormat;
+        hr = pProps->GetValue(PKEY_AudioEngine_OEMFormat, &varOemFormat);
+        exit_on_failed(hr);
+        ss << "PKEY_AudioEngine_OEMFormat: \n";
+        if (varOemFormat.vt == VT_BLOB) {
+            auto pFormat = (WAVEFORMATEX*)varOemFormat.blob.pBlobData;
+            ss << to_wstring(pFormat);
+        }
+
+        wil::unique_prop_variant varJackSubType;
+        hr = pProps->GetValue(PKEY_AudioEndpoint_JackSubType, &varJackSubType);
+        exit_on_failed(hr);
+        ss << "PKEY_AudioEndpoint_JackSubType: " << varJackSubType.pwszVal << "\n";
+
+        spdlog::info("{}", wchars_to_mbs(ss.str()));
+        // spdlog::info("{}", wchars_to_utf8(varFriendlyName.pwszVal));
     }
 }
 
-void exit_on_failed(HRESULT hr, const char* message, const char* func)
+static void exit_on_failed(HRESULT hr, const char* message, const char* func)
 {
     if (FAILED(hr)) {
-        spdlog::error("exit_on_failed {} {} {}", func, message, wchars_to_utf8(wstr_win_err(HRESULT_CODE(hr))));
+        spdlog::error("exit_on_failed hr={}, func={}, message={}, error={}", hr, func, message, str_win_err(HRESULT_CODE(hr)));
         exit(-1);
     }
 }
@@ -298,10 +485,10 @@ void exit_on_failed(HRESULT hr, const char* message, const char* func)
 std::string wchars_to_mbs(const std::wstring& src)
 {
     UINT cp = GetACP();
-    int n = WideCharToMultiByte(cp, 0, src.data(), (int)src.size(), nullptr, 0, 0, 0);
+    int n = WideCharToMultiByte(cp, 0, src.data(), (int)src.size(), nullptr, 0, nullptr, nullptr);
 
     std::vector<char> buf(n);
-    WideCharToMultiByte(cp, 0, src.data(), (int)src.size(), buf.data(), (int)buf.size(), 0, 0);
+    WideCharToMultiByte(cp, 0, src.data(), (int)src.size(), buf.data(), (int)buf.size(), nullptr, nullptr);
     std::string dst(buf.data(), buf.size());
     return dst;
 }
@@ -309,10 +496,10 @@ std::string wchars_to_mbs(const std::wstring& src)
 std::string wchars_to_utf8(const std::wstring& src)
 {
     UINT cp = CP_UTF8;
-    int n = WideCharToMultiByte(cp, 0, src.data(), (int)src.size(), nullptr, 0, 0, 0);
+    int n = WideCharToMultiByte(cp, 0, src.data(), (int)src.size(), nullptr, 0, nullptr, nullptr);
 
     std::vector<char> buf(n);
-    WideCharToMultiByte(cp, 0, src.data(), (int)src.size(), buf.data(), (int)buf.size(), 0, 0);
+    WideCharToMultiByte(cp, 0, src.data(), (int)src.size(), buf.data(), (int)buf.size(), nullptr, nullptr);
     std::string dst(buf.data(), buf.size());
     return dst;
 }
