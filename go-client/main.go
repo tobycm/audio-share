@@ -194,7 +194,7 @@ func InitOto() error {
 }
 
 func LoadFileAndPlay(file string) error {
-	fileBytes, err := os.ReadFile(args.OnConnect)
+	fileBytes, err := os.ReadFile(file)
 	if err != nil {
 		return err
 	}
@@ -381,11 +381,10 @@ func main() {
 
 		if err := Init(); err != nil {
 			slog.Error(fmt.Sprintf("%v", err))
-
-			if state == Connected && args.OnDisconnect != "" {
-				if err := LoadFileAndPlay(args.OnDisconnect); err != nil {
-					slog.Error(fmt.Sprintf("%v", err))
-				}
+		}
+		if state == Connected && args.OnDisconnect != "" {
+			if err := LoadFileAndPlay(args.OnDisconnect); err != nil {
+				slog.Error(fmt.Sprintf("%v", err))
 			}
 		}
 
